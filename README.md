@@ -1,21 +1,17 @@
 # CipherCaller
-## A program for encrypted voice transmission and its evaluation
+A program for encrypted voice transmission and its evaluation
 
-Structure and some mechanics based on a [framework](https://github.com/sebsow9/Framework) [sebsow9](https://github.com/sebsow9) and I developed to learn the ropes of AV transmissions.
+### Capabilities
+> [!NOTE]
+> This program is still in the early stages of development. This description covers currrent capabilities, however more features are on the way!
 
-### Usage
+In the present moment, the program is able to stream an input file between two containers over UDP.
 
+### Basic usage
+To use this program simply navigate to its root directory and issue the `docker compose up` command. You can change the program's behaviour by modifying [`config.yaml`](/config.yaml). Basic information about fields and their functions is supplied through comments in the file itself. For further information please see the project's github wiki.
 
-### Configuration
-Configuration involves modifying values in the [configuration](/config.yaml) file. Basic information about fields and their functions is supplied through comments in the file itself.
-
-#### Valid configuration field values
-
-### Exit codes
-These are general error categories. Please refer to the error message for more details.
-#### 1 - Configuration issue
-#### 2 - File not found
-#### 3 - File permission error
+### Ackgnowledgements
+This program is part of my engineer's dissertation. Its structure and some mechanics are based on a [framework](https://github.com/sebsow9/Framework) co-developed with [sebsow9](https://github.com/sebsow9) to learn the ropes of AV transmissions in preparation for our further endeavours.
 
 ### License
 This program is distributed under the GNU GPL v3 license, which you can find [here](/LICENSE).
