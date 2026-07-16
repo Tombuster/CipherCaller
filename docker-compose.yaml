@@ -1,0 +1,45 @@
+# ciphercaller configuration
+# Version: default
+# Last modified: 2026-07-12
+
+
+services:
+    sender:
+        build:
+            context: ./
+            dockerfile: ./src/Dockerfile  # ./src/sender/Dockerfile
+        container_name: ciphercaller-sender
+        environment:
+            - ROLE=sender
+        volumes:
+            - ./config.yaml:/ciphercaller/config.yaml:ro
+            - ./media:/ciphercaller/media:ro
+            # - ./results:/results
+        networks:
+            - transmission_net
+        depends_on:
+            - receiver
+        # Sender hardware limits:
+        # cpus: 0.5
+
+    receiver:
+        build:
+            context: ./
+            dockerfile: ./src/Dockerfile
+        container_name: ciphercaller-receiver
+        environment:
+            - ROLE=receiver
+        volumes:
+            - ./config.yaml:/ciphercaller/config.yaml:ro
+            - ./media:/ciphercaller/media:wo
+            # - ./results:/results
+        networks:
+            - transmission_net
+        ports:
+            - "2004:2004"
+        # Receiver hardware limits:
+        # cpus: 0.5
+
+networks:
+    transmission_net:
+        driver: bridge
