@@ -12,10 +12,10 @@ Configuration involves modifying values in the [configuration](/config.yaml) fil
 #### Valid configuration field values
 
 ### Exit codes
+These are general error categories. Please refer to the error message for more details.
 #### 1 - Configuration issue
-Please refer to the error message.
-#### 2 - File issue
-File not found and other file errors.
+#### 2 - File not found
+#### 3 - File permission error
 
 ### License
 This program is distributed under the GNU GPL v3 license, which you can find [here](/LICENSE).

@@ -217,7 +217,12 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# Project-specific
+# === Project-specific === #
 notes.md
-media/
 .vscode/
+
+# Don't track user's input and output, but keep the structure for demonstrative purposes
+media/input/*
+media/output/*
+!media/input/example.wav
+!media/output/example.wav

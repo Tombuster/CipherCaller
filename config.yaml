@@ -1,10 +1,10 @@
 input:
   method: file  # specify from [microphone, file] operation mode
-  file_path: media/input/input.wav  # Input file path for "file" mode
+  file_path: media/input/example.wav  # Input file path for "file" mode
 
 output:
   method: file  # specify from [file, playback, both], by default value is "file"
-  file_path: media/output/output.wav  # Input file path for "file" and "both" mode
+  file_path: media/output/example.wav  # Input file path for "file" and "both" modes
 
 plugin:
   use_plugin: no  # specify from [yes, no]. by default value is "no"
