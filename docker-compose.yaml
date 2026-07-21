@@ -1,6 +1,6 @@
-# ciphercaller configuration
+# CipherCaller docker configuration
 # Version: default
-# Last modified: 2026-07-12
+# Last modified: 2026-07-21
 
 
 services:
@@ -14,11 +14,15 @@ services:
         volumes:
             - ./config.yaml:/ciphercaller/config.yaml:ro
             - ./media:/ciphercaller/media:ro
-            # - ./results:/results
         networks:
             - transmission_net
         depends_on:
             - receiver
+    # === FOR MICROPHONE INPUT === #
+        devices:
+            - /dev/snd:/sound:ro
+        group_add:
+            - audio
         # Sender hardware limits:
         # cpus: 0.5
 
@@ -32,11 +36,15 @@ services:
         volumes:
             - ./config.yaml:/ciphercaller/config.yaml:ro
             - ./media:/ciphercaller/media:wo
-            # - ./results:/results
         networks:
             - transmission_net
-        ports:
-            - "2004:2004"
+    # === FOR LIVE SPEAKER OUTPUT === #
+        devices:
+            - /dev/snd:/sound:wo
+        group_add:
+            - audio
+        # ports:
+        #     - "2004:2004"  # Only needed for remote deployments
         # Receiver hardware limits:
         # cpus: 0.5
 

@@ -3,8 +3,8 @@ import socket
 import pyaudio
 import wave
 import sys
-
 from time import sleep
+from src.plugins.loader import load_plugin
 
 logger = logging.getLogger(__name__)
 
@@ -13,10 +13,15 @@ class Receiver:
         self.output_params = config["output"]
         self.pyaudio_params = config["pyaudio"]
         self.socket_params = config["sockets"]
-
+        if config["plugin"].get("use_plugin", "no") == "yes":
+            self.use_plugin = True
+            self.plugin_params = config["plugin"]
+            self.plugin = load_plugin(self.config)  # TODO: Stop here or proceed on None?
+        else:
+            self.use_plugin = False
 
     def receive_stream_chunk_from_host(self, sockfd: socket.socket) -> bytes:
-        chunk = sockfd.recvfrom(2*int(self.pyaudio_params["chunk_size"]))[0]  # Discard sender address
+        chunk = sockfd.recvfrom(2*int(self.pyaudio_params["chunk_size"]))[0]  # Discard sender address - only simplex communication
         return chunk
 
 
@@ -65,6 +70,10 @@ class Receiver:
         # Finish set up
         logger.info("Receiver setup complete")
 
+    # === KEY EXCHANGE === #
+        if self.use_plugin:
+            self.plugin.receiver_key_exchange()
+        
     # === RECEIVE === #
         # Receive transmitted chunk...
         exit_loop = False
@@ -76,6 +85,8 @@ class Receiver:
                 logger.warning(f"Receiver warning: Socket timeout ({socket_timeout} s) exceeded!")
                 exit_loop = True
             # ...process by plugin if specified...
+            if self.use_plugin:
+                chunk = self.plugin.receiver_decrypt_chunk(chunk)
 
             # ...and output result
             if method == "playback" or method == "both":
@@ -85,6 +96,8 @@ class Receiver:
 
 
     # === CLEAN UP === #
+        if self.use_plugin:  # Plugin
+            self.plugin.receiver_cleanup()
         if method == "playback" or method == "both":  # PyAudio
             pyaudio_output_stream.close()
             p.terminate()

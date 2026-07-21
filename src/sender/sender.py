@@ -4,6 +4,7 @@ import socket
 import wave
 import sys
 from time import sleep
+from src.plugins.loader import load_plugin
 
 logger = logging.getLogger(__name__)
 
@@ -12,12 +13,14 @@ class Sender:
         self.input_params = config["input"]
         self.pyaudio_params = config["pyaudio"]
         self.socket_params = config["sockets"]
-
+        if config["plugin"].get("use_plugin", "no") == "yes":
+            self.use_plugin = True
+            self.plugin_params = config["plugin"]
+            self.plugin = load_plugin(self.config)  # TODO: Stop here or proceed on None?
+        else:
+            self.use_plugin = False
 
     def send_stream_chunk_to_host(self, socket_params: dict, chunk: bytes, sockfd: socket.socket) -> None:
-        # ...process it with the plugin if specified...
-
-        # ...and send it over UDP to the specified host
         sockfd.sendto(chunk, 
             (socket_params["receiver_host"],
              int(socket_params["port"])))
@@ -63,6 +66,10 @@ class Sender:
         logger.info("Sender setup complete!")
 
 
+    # === KEY EXCHANGE === #
+        if self.use_plugin:
+            self.plugin.sender_key_exchange()
+
     # === TRANSMIT === #
         logger.info(f"Waiting {self.socket_params["sender_delay_ms"]/1000} seconds to allow for receiver to bind... (Change in config.yaml -> sockets -> sender_delay_ms)")
         sleep(self.socket_params["sender_delay_ms"]/1000)
@@ -77,18 +84,35 @@ class Sender:
             logger.info("Sending audio. Press Ctrl+C to stop")
             while True:
                 try:
-                    self.send_stream_chunk_to_host(self.socket_params, microphone_stream.read(self.pyaudio_params["chunk_size"]), sockfd)
+                    # Read chunk from microphone stream...
+                    chunk = microphone_stream.read(self.pyaudio_params["chunk_size"])
+
+                    # ...Encrypt it...
+                    if self.use_plugin:
+                        chunk = self.plugin.sender_encrypt_chunk(chunk)
+
+                    # ...And transmit to receiver
+                    self.send_stream_chunk_to_host(self.socket_params, chunk, sockfd)
                 except KeyboardInterrupt:
                     break
         
         # Stream file contents to receiver
         elif method == "file":
             logger.info(f"Sending contents of {input_file_path} to {self.socket_params["receiver_host"]}...")
+            # Read consecutive chunks...
             while len(chunk := wf.readframes(self.pyaudio_params["chunk_size"])):
+                # ...Encrypt them...
+                if self.use_plugin:
+                    self.plugin.sender_encrypt_chunk(chunk)
+                # ...And transmit to receiver
                 self.send_stream_chunk_to_host(self.socket_params, chunk, sockfd)
-            logger.info("Transmission finished!")
+        
+        # Notify user about ending transmission
+        logger.info("Transmission finished!")
 
     # === CLEAN UP === #
+        if self.use_plugin:  # Plugin
+            self.plugin.sender_cleanup()
         if method == "microphone":  # PyAudio
             microphone_stream.close()
             p.terminate()
