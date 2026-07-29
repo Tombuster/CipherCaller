@@ -4,17 +4,18 @@
 # For further guidance, please visit the project wiki https://github.com/Tombuster/CipherCaller/wiki
 
 input:
-  method: file  # Specify from [microphone, file] operation mode. Default value is "file"
+  method: file  # [microphone, file]. Operation mode. Default value is "file"
   file_path: media/input/example.wav  # Input file path for "file" mode
 
 output:
-  method: file  # Specify from [file, playback, both]. Default value is "file"
+  method: file  # [file, playback, both]. Operation mode. Default value is "file"
   file_path: media/output/example.wav  # Output file path for "file" and "both" modes
 
 pyaudio:  # Microphone input parameters
-  chunk_size: 241  # This is also the transmission datagram's data field length <- not rlly
+  chunk_size: 1024  # This is also the transmission datagram's data field length <- not rlly
   channels: 1
   rate: 44100
+  sample_width_bytes: 2 # [1, 2, 4]. Corresponds to 8b, 16b and 32b integers. Value of 3 is technically supported, though reading a file results in mostly noise...
 
 sockets:
   receiver_host: receiver  # Docker SERVICE name. Change to IPv4 address for remote deployment
@@ -23,11 +24,18 @@ sockets:
   sender_delay_ms: 3000  # Delay before streaming starts, used to let receiver socket bind
   receiver_timeout_ms: 10000  # Denotes the delay between receiving a datagram and breaking the receiving loop. Must exceed sender startup time
 
+# jack:  # might be needed
+
 logging:
   level: INFO
 
 plugin:
   # Plugin configuration
   # When creating your own plugin, you can include its keys in this section
-  use_plugin: no  # Specify from [yes, no]. Default value is "no"
-  name: example  # Name of Python file containing desired plugin. MUST be in the src/plugins/ directory!
+  use_plugin: yes  # [yes, no]. Default value is "no"
+  name: simple-aes128-psk  # Name of Python file containing desired plugin. MUST be in the src/plugins/ directory!
+  config_path: src/plugins/simple-aes128-psk/plugin-config.yaml
+
+debug:
+  sender_output_stream_to_file: no # [yes, no] NOTE: Needs permissions in docker-compose.yaml!
+  sender_output_file_path: media/output/sender_output.wav

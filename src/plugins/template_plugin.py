@@ -10,6 +10,7 @@
 
 from abc import ABC
 import logging
+import socket
 
 logger = logging.getLogger(__name__)
 
@@ -17,12 +18,12 @@ class Plugin(ABC):
 
 # === COMMON INITIALIZATION === #
     def __init__(self, config: dict) -> None:
-        self.plugin_config = config.get("plugin", {})
+        self.main_plugin_config = config.get("plugin", {})
         # You can also load other configuration keys here
 
 
 # === SENDER METHODS === #
-    def sender_key_exchange(self) -> None:
+    def sender_key_exchange(self, sockfd: socket) -> None:
         # This function is called during sender initialization.
         #
         # Note: If you don't want a key exchange in your plugin,
@@ -43,11 +44,11 @@ class Plugin(ABC):
     
     def sender_cleanup(self) -> None:
         # This function is called right before SENDER program exit. Use it to close descriptors, etc.
-        pass
+        return
 
 
 # === RECEIVER METHODS === #
-    def receiver_key_exchange(self) -> None:
+    def receiver_key_exchange(self, sockfd: socket) -> None:
         # This function is called during receiver initialization.
         #
         # Note: If you don't want a key exchange in your plugin,
@@ -69,4 +70,4 @@ class Plugin(ABC):
     
     def receiver_cleanup(self) -> None:
         # This function is called right before RECEIVER program exit. Use it to close descriptors, etc.
-        pass
+        return

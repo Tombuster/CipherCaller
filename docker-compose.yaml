@@ -13,14 +13,14 @@ services:
             - ROLE=sender
         volumes:
             - ./config.yaml:/ciphercaller/config.yaml:ro
-            - ./media:/ciphercaller/media:ro
+            - ./media:/ciphercaller/media:rw   # TODO: change back to :ro after debugging
         networks:
             - transmission_net
         depends_on:
             - receiver
     # === FOR MICROPHONE INPUT === #
         devices:
-            - /dev/snd:/sound:ro
+            - /dev/snd:/dev/snd:ro
         group_add:
             - audio
         # Sender hardware limits:
@@ -40,7 +40,7 @@ services:
             - transmission_net
     # === FOR LIVE SPEAKER OUTPUT === #
         devices:
-            - /dev/snd:/sound:wo
+            - /dev/snd:/dev/snd:wo
         group_add:
             - audio
         # ports:

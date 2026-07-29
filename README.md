@@ -7,12 +7,12 @@ A program for encrypted voice transmission and its evaluation
 
 In the present moment, the program is able to stream an input file between two containers over UDP. Below is a brief road map of upcoming features:
 - [x] Basic file stream between containers
+- [x] Cryptography plug-in system
+- [ ] Example plugins
+- [ ] Performance measurement system
 - [ ] Microphone input
 - [ ] Speaker output
-- [ ] Cryptography plug-in system
-- [ ] Example plugins
 - [ ] Real-time simulation for file input
-- [ ] Performance measurement system
 
 
 ### Basic usage

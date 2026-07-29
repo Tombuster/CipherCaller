@@ -2,9 +2,12 @@ import logging
 import socket
 import pyaudio
 import wave
+import jack
 import sys
-from time import sleep
 from src.plugins.loader import load_plugin
+
+# Debug puropses
+from time import sleep
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +24,7 @@ class Receiver:
             self.use_plugin = False
 
     def receive_stream_chunk_from_host(self, sockfd: socket.socket) -> bytes:
-        chunk = sockfd.recvfrom(2*int(self.pyaudio_params["chunk_size"]))[0]  # Discard sender address - only simplex communication
+        chunk = sockfd.recvfrom(6*int(self.pyaudio_params["chunk_size"]))[0]  # Discard sender address - only simplex communication
         return chunk
 
 
@@ -34,18 +37,21 @@ class Receiver:
         sockfd.bind((self.socket_params.get("receiver_address", ""), int(self.socket_params["port"])))
         logger.info(f"Receiver socket successfully bound to address '{self.socket_params.get("receiver_address", "")}' port {int(self.socket_params["port"])}")
         
-        # Set up output related I/O
+        # Set up file output related I/O
         method = self.output_params.get("method", "file")
         output_file_path = self.output_params.get("file_path", "/media/output/output.wav")
 
-        # Set up pyaudio output stream
         if method == "playback" or method == "both":
+        # TODO: Set up JACK client
+
+
+        # Set up pyaudio output stream
             p = pyaudio.PyAudio()
-            # TODO: Change the following to output parameters!
-            pyaudio_output_stream = p.open(format=pyaudio.paInt16,
+            pyaudio_output_stream = p.open(format=pyaudio.get_format_from_width(self.pyaudio_params["sample_width_bytes"]),
                 channels=self.pyaudio_params["channels"],
                 rate=self.pyaudio_params["rate"],
-                output=True)
+                output=True,
+                output_device_index=0)
         
         # Set up wav file output
         if method == "file" or method == "both":
@@ -59,7 +65,7 @@ class Receiver:
                 sys.exit(3)
 
             wf.setnchannels(self.pyaudio_params["channels"])
-            wf.setsampwidth(pyaudio.get_sample_size(pyaudio.paInt16))
+            wf.setsampwidth(self.pyaudio_params["sample_width_bytes"])
             wf.setframerate(self.pyaudio_params["rate"])
 
         # Invalid mode supplied
@@ -72,7 +78,7 @@ class Receiver:
 
     # === KEY EXCHANGE === #
         if self.use_plugin:
-            self.plugin.receiver_key_exchange()
+            self.plugin.receiver_key_exchange(sockfd)
         
     # === RECEIVE === #
         # Receive transmitted chunk...
@@ -80,10 +86,11 @@ class Receiver:
         while not exit_loop:
             try:
                 chunk = self.receive_stream_chunk_from_host(sockfd)
-                logger.info("Received chunk!")
+                # logger.info(f"Received chunk! expected length:{self.pyaudio_params["chunk_size"]}, got {len(chunk)}")
             except socket.timeout:
                 logger.warning(f"Receiver warning: Socket timeout ({socket_timeout} s) exceeded!")
                 exit_loop = True
+                
             # ...process by plugin if specified...
             if self.use_plugin:
                 chunk = self.plugin.receiver_decrypt_chunk(chunk)
@@ -98,9 +105,12 @@ class Receiver:
     # === CLEAN UP === #
         if self.use_plugin:  # Plugin
             self.plugin.receiver_cleanup()
-        if method == "playback" or method == "both":  # PyAudio
+        if method == "playback" or method == "both":
+            # PyAudio
             pyaudio_output_stream.close()
             p.terminate()
+            # TODO: JACK
+
         if method == "file" or method == "both":  # Wave
             wf.close()
         sockfd.close()  # Sockets
