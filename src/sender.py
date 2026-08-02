@@ -2,9 +2,10 @@ import logging
 import pyaudio
 import socket
 import wave
-import jack
+import jack  # For host audio device I/O, might switch to portaudio but this is more low-level
 import sys
-from time import sleep
+import time
+import csv
 from src.plugins.loader import load_plugin
 
 logger = logging.getLogger(__name__)
@@ -14,6 +15,7 @@ class Sender:
         self.input_params = config["input"]
         self.pyaudio_params = config["pyaudio"]
         self.socket_params = config["sockets"]
+        self.benchmark_params = config["benchmarking"]
         if config["plugin"].get("use_plugin", "no") == "yes":
             self.use_plugin = True
             self.plugin_params = config["plugin"]
@@ -28,10 +30,11 @@ class Sender:
         else:
             self.debug_write_file = False
 
-    def send_stream_chunk_to_host(self, socket_params: dict, chunk: bytes, sockfd: socket.socket) -> None:
+
+    def send_stream_chunk_to_host(self, chunk: bytes, sockfd: socket.socket) -> None:
         sockfd.sendto(chunk, 
-            (socket_params["receiver_host"],
-             int(socket_params["port"])))
+            (self.socket_params["receiver_host"],
+             int(self.socket_params["port"])))
         return
 
 
@@ -45,18 +48,19 @@ class Sender:
         input_file_path = self.input_params.get("file_path", "/media/input/input.wav")
 
         if method == "microphone":
-        # TODO: Set up JACK client
+        # # TODO: Set up JACK client
+        #     jack_client = jack.Client("CipherCaller_mic_input")
+        #     jack_input = jack_client.inports.register('input_1')
+        #     print(jack_client.get_ports())
 
-
-        # Set up microphone data stream
-        # Based on https://people.csail.mit.edu/hubert/pyaudio/#record-example
+            # Set up microphone data stream
+            # Based on https://people.csail.mit.edu/hubert/pyaudio/#record-example
             p = pyaudio.PyAudio()
             microphone_stream = p.open(format=pyaudio.get_format_from_width(self.pyaudio_params["sample_width_bytes"]),
                 channels=self.pyaudio_params["channels"],
                 rate=self.pyaudio_params["rate"],
                 input=True,
                 frames_per_buffer=self.pyaudio_params["chunk_size"])
-            
         # Set up wave file input
         elif method == "file":
             try:
@@ -107,7 +111,7 @@ class Sender:
 
     # === TRANSMIT === #
         logger.info(f"Waiting {self.socket_params["sender_delay_ms"]/1000} seconds to allow for receiver to bind... (Change in config.yaml -> sockets -> sender_delay_ms)")
-        sleep(self.socket_params["sender_delay_ms"]/1000)
+        time.sleep(self.socket_params["sender_delay_ms"]/1000)
 
         # Stream microphone input to receiver
         if method == "microphone":
@@ -115,7 +119,7 @@ class Sender:
             logger.info("Microphone transmission will begin after the following countdown. Press Ctrl+C to stop transmitting.")
             for i in range(5, 0, -1):
                 logger.info(f"{i}...")
-                sleep(1)
+                time.sleep(1)
             logger.info("Sending audio. Press Ctrl+C to stop")
             while True:
                 try:
@@ -131,7 +135,7 @@ class Sender:
                         chunk = self.plugin.sender_encrypt_chunk(chunk)
 
                     # ...And transmit to receiver
-                    self.send_stream_chunk_to_host(self.socket_params, chunk, sockfd)
+                    self.send_stream_chunk_to_host(chunk, sockfd)
                 except KeyboardInterrupt:
                     break
         
@@ -140,7 +144,7 @@ class Sender:
             logger.info(f"Sending contents of {input_file_path} to {self.socket_params["receiver_host"]}...")
             # Read consecutive chunks...
             while len(chunk := wf.readframes(self.pyaudio_params["chunk_size"])):
-
+                logger.info(f"Raw chunk size: {len(chunk)}")
                 # ...Write to debug output...
                 if self.debug_write_file:
                     debug_wf.writeframes(chunk)
@@ -148,9 +152,9 @@ class Sender:
                 # ...Encrypt them...
                 if self.use_plugin:
                     self.plugin.sender_encrypt_chunk(chunk)
-
+                    logger.info(f"Encrypted chunk size: {len(chunk)}")
                 # ...And transmit to receiver
-                self.send_stream_chunk_to_host(self.socket_params, chunk, sockfd)
+                self.send_stream_chunk_to_host(chunk, sockfd)
                 # logger.info(f"Sent chunk length: {len(chunk)}")
                 # Then wait a bit to simulate real-time playback
                 # sleep(0.01)

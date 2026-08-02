@@ -7,10 +7,10 @@ services:
     sender:
         build:
             context: ./
-            dockerfile: ./src/Dockerfile  # ./src/sender/Dockerfile
+            dockerfile: ./src/Dockerfile
         container_name: ciphercaller-sender
         environment:
-            - ROLE=sender
+            - CIPHERCALLER-ROLE=sender
         volumes:
             - ./config.yaml:/ciphercaller/config.yaml:ro
             - ./media:/ciphercaller/media:rw   # TODO: change back to :ro after debugging
@@ -20,7 +20,7 @@ services:
             - receiver
     # === FOR MICROPHONE INPUT === #
         devices:
-            - /dev/snd:/dev/snd:ro
+            - /dev/snd:/dev/snd
         group_add:
             - audio
         # Sender hardware limits:
@@ -32,7 +32,7 @@ services:
             dockerfile: ./src/Dockerfile
         container_name: ciphercaller-receiver
         environment:
-            - ROLE=receiver
+            - CIPHERCALLER-ROLE=receiver
         volumes:
             - ./config.yaml:/ciphercaller/config.yaml:ro
             - ./media:/ciphercaller/media:wo
@@ -40,7 +40,7 @@ services:
             - transmission_net
     # === FOR LIVE SPEAKER OUTPUT === #
         devices:
-            - /dev/snd:/dev/snd:wo
+            - /dev/snd:/dev/snd
         group_add:
             - audio
         # ports:

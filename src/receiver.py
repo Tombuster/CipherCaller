@@ -4,7 +4,10 @@ import pyaudio
 import wave
 import jack
 import sys
+import time
+import csv
 from src.plugins.loader import load_plugin
+from src.benchmarking import TimestampLogger
 
 # Debug puropses
 from time import sleep
@@ -13,9 +16,17 @@ logger = logging.getLogger(__name__)
 
 class Receiver:
     def __init__(self, config: dict) -> None:
+        # Basic transmission
         self.output_params = config["output"]
         self.pyaudio_params = config["pyaudio"]
         self.socket_params = config["sockets"]
+        # Benchmarking
+        if config["benchmarking"].get("log_timestamps", "no") == "yes":
+            self.benchmark_on = True
+            self.benchmark_params = config["benchmarking"]
+        else:
+            self.benchmark_on = False
+        # Plugins
         if config["plugin"].get("use_plugin", "no") == "yes":
             self.use_plugin = True
             self.plugin_params = config["plugin"]
@@ -23,8 +34,12 @@ class Receiver:
         else:
             self.use_plugin = False
 
+
     def receive_stream_chunk_from_host(self, sockfd: socket.socket) -> bytes:
-        chunk = sockfd.recvfrom(6*int(self.pyaudio_params["chunk_size"]))[0]  # Discard sender address - only simplex communication
+        chunk = sockfd.recvfrom(
+            int(self.pyaudio_params["chunk_size"])  # calculate buffer as chunk * channels * sample width
+            * int(self.pyaudio_params["channels"])
+            * int(self.pyaudio_params["sample_width_bytes"]))[0]  # Discard sender address - only simplex communication
         return chunk
 
 
@@ -73,6 +88,13 @@ class Receiver:
             logger.error(f"Receiver error: Unsupported operation mode: {method}! Please check the value of config.yaml -> output -> method, and refer to the documentation for supported values.")
             sys.exit(1)
 
+        # Set up performance logging
+        if self.benchmark_on:
+            # Create timestamp logger with appropriate file name
+            timestamp_logger = TimestampLogger(f"{self.benchmark_params.get("directory_path", "measurements")}/{self.plugin_params["name"] if self.use_plugin else "no_plugin"}")  # TODO: add numbering to file name
+
+            # Write headers in first line
+
         # Finish set up
         logger.info("Receiver setup complete")
 
@@ -114,4 +136,6 @@ class Receiver:
         if method == "file" or method == "both":  # Wave
             wf.close()
         sockfd.close()  # Sockets
+        if self.benchmark_on:
+            timestamp_logger.close()
         sys.exit()

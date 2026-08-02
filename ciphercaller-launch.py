@@ -4,8 +4,8 @@ import yaml
 import logging
 from time import sleep
 
-from src.sender.sender import Sender
-from src.receiver.receiver import Receiver
+from src.sender import Sender
+from src.receiver import Receiver
 
 
 def load_config(path_to_config_file: str = "config.yaml") -> dict:
@@ -14,7 +14,7 @@ def load_config(path_to_config_file: str = "config.yaml") -> dict:
 def setup_logging(level: str) -> None:
     logging.basicConfig(
         level=getattr(logging, level.upper(), logging.INFO),
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        format="%(asctime)s [%(levelname)s] (%(name)s) %(message)s",
     )
 
 
@@ -25,7 +25,7 @@ def main() -> None:
     setup_logging(config.get("logging", {}).get("level", "INFO"))
     logger = logging.getLogger(__name__)
     # ROLE environment variable takes precedence over config
-    role = os.environ.get("ROLE", config.get("role", "sender")).lower()
+    role = os.environ.get("CIPHERCALLER-ROLE", config.get("role", "sender")).lower()
     logger.info(f"Setting up {role}...")
 
     # Running file for specified docker service based on role
@@ -34,7 +34,7 @@ def main() -> None:
     elif role == "receiver":
         Receiver(config).run()
     else:
-        logger.error(f"Unsupported role: {repr(role)}!")
+        logger.error(f"Unsupported role: {role}!")
         sys.exit(1)
 
 if __name__ == "__main__":

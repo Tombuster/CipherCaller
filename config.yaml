@@ -11,6 +11,10 @@ output:
   method: file  # [file, playback, both]. Operation mode. Default value is "file"
   file_path: media/output/example.wav  # Output file path for "file" and "both" modes
 
+benchmarking:
+  log_timestamps: yes  # [yes, no]
+  directory_path: measurements  # Performance measurements will be stored here
+
 pyaudio:  # Microphone input parameters
   chunk_size: 1024  # This is also the transmission datagram's data field length <- not rlly
   channels: 1
@@ -21,7 +25,7 @@ sockets:
   receiver_host: receiver  # Docker SERVICE name. Change to IPv4 address for remote deployment
   # receiver_address:  # Address supplied to receiver's socket.bind() command; Default is ""
   port: 2004
-  sender_delay_ms: 3000  # Delay before streaming starts, used to let receiver socket bind
+  sender_delay_ms: 1000  # Delay before streaming starts, used to let receiver socket bind
   receiver_timeout_ms: 10000  # Denotes the delay between receiving a datagram and breaking the receiving loop. Must exceed sender startup time
 
 # jack:  # might be needed
