@@ -11,12 +11,11 @@ output:
   method: file  # [file, playback, both]. Operation mode. Default value is "file"
   file_path: media/output/example.wav  # Output file path for "file" and "both" modes
 
-benchmarking:
-  log_timestamps: yes  # [yes, no]
-  directory_path: measurements  # Performance measurements will be stored here
+benchmarking:  # Measurements will apprear in Ciphercaller/measurements
+  log_timestamps: no  # [yes, no]
 
 pyaudio:  # Microphone input parameters
-  chunk_size: 1024  # This is also the transmission datagram's data field length <- not rlly
+  chunk_size: 1024  # how many audio frames are sent in each datagram, cipher block etc.
   channels: 1
   rate: 44100
   sample_width_bytes: 2 # [1, 2, 4]. Corresponds to 8b, 16b and 32b integers. Value of 3 is technically supported, though reading a file results in mostly noise...
@@ -37,8 +36,8 @@ plugin:
   # Plugin configuration
   # When creating your own plugin, you can include its keys in this section
   use_plugin: yes  # [yes, no]. Default value is "no"
-  name: simple-aes128-psk  # Name of Python file containing desired plugin. MUST be in the src/plugins/ directory!
-  config_path: src/plugins/simple-aes128-psk/plugin-config.yaml
+  name: simple-aes-psk  # Name of Python file containing desired plugin. MUST be in the src/plugins/ directory!
+  config_path: src/plugins/plugin-config/simple-aes-psk.yaml
 
 debug:
   sender_output_stream_to_file: no # [yes, no] NOTE: Needs permissions in docker-compose.yaml!

@@ -1,45 +1,55 @@
-import logging
-import socket
-import pyaudio
-import wave
-import jack
-import sys
-import time
-import csv
+import logging  # logs
+import pyaudio  # audio I/O
+import wave  # wav files
+import socket  # web sockets api
+import jack  # host audio device I/O, might switch to portaudio but this is more low-level
+import sys  # exit()
+import time  # performance measurements + sleep
+import csv  # performance logging maybe
 from src.plugins.loader import load_plugin
 from src.benchmarking import TimestampLogger
 
-# Debug puropses
-from time import sleep
 
 logger = logging.getLogger(__name__)
 
 class Receiver:
     def __init__(self, config: dict) -> None:
         # Basic transmission
+        self.config = config
         self.output_params = config["output"]
         self.pyaudio_params = config["pyaudio"]
         self.socket_params = config["sockets"]
+        self.last_received = 0  # Sequence number of last received chunk
+
         # Benchmarking
-        if config["benchmarking"].get("log_timestamps", "no") == "yes":
+        if config["benchmarking"].get("log_timestamps", False):
             self.benchmark_on = True
             self.benchmark_params = config["benchmarking"]
         else:
             self.benchmark_on = False
+
         # Plugins
-        if config["plugin"].get("use_plugin", "no") == "yes":
+        if config["plugin"].get("use_plugin", False):
             self.use_plugin = True
             self.plugin_params = config["plugin"]
             self.plugin = load_plugin(self.config)  # TODO: Stop here or proceed on None?
         else:
             self.use_plugin = False
 
+        # Sockets recvfrom buffer size
+        self.buffer_size = (int(self.pyaudio_params["chunk_size"])  # calculate base buffer length as (chunk * channels * sample width)
+                            * int(self.pyaudio_params["channels"])
+                            * int(self.pyaudio_params["sample_width_bytes"]))
+        # Extend buffer size to acommodate paddings, etc.
+        if self.use_plugin:
+            self.buffer_size = self.plugin.receiver_extend_buffer(self.buffer_size)
+        # Add space for sequence number
+        self.buffer_size += 8
+        # logger.info(f"===> Final buffer size: {self.buffer_size} <===")
+
 
     def receive_stream_chunk_from_host(self, sockfd: socket.socket) -> bytes:
-        chunk = sockfd.recvfrom(
-            int(self.pyaudio_params["chunk_size"])  # calculate buffer as chunk * channels * sample width
-            * int(self.pyaudio_params["channels"])
-            * int(self.pyaudio_params["sample_width_bytes"]))[0]  # Discard sender address - only simplex communication
+        chunk = sockfd.recvfrom(self.buffer_size)[0]  # discard sender address - only simplex communication
         return chunk
 
 
@@ -88,15 +98,15 @@ class Receiver:
             logger.error(f"Receiver error: Unsupported operation mode: {method}! Please check the value of config.yaml -> output -> method, and refer to the documentation for supported values.")
             sys.exit(1)
 
-        # Set up performance logging
-        if self.benchmark_on:
-            # Create timestamp logger with appropriate file name
-            timestamp_logger = TimestampLogger(f"{self.benchmark_params.get("directory_path", "measurements")}/{self.plugin_params["name"] if self.use_plugin else "no_plugin"}")  # TODO: add numbering to file name
+        # TODO: Set up performance logging
+        # if self.benchmark_on:
+        #     # Create timestamp logger with appropriate file name
+        #     timestamp_logger = TimestampLogger(self.config)
 
-            # Write headers in first line
+        #     # Write headers in first line
 
         # Finish set up
-        logger.info("Receiver setup complete")
+        logger.info("Receiver setup complete!")
 
     # === KEY EXCHANGE === #
         if self.use_plugin:
@@ -107,11 +117,15 @@ class Receiver:
         exit_loop = False
         while not exit_loop:
             try:
-                chunk = self.receive_stream_chunk_from_host(sockfd)
-                # logger.info(f"Received chunk! expected length:{self.pyaudio_params["chunk_size"]}, got {len(chunk)}")
+                data = self.receive_stream_chunk_from_host(sockfd)
             except socket.timeout:
                 logger.warning(f"Receiver warning: Socket timeout ({socket_timeout} s) exceeded!")
                 exit_loop = True
+
+            # ...separate the sequence number...
+            sequence_number = int.from_bytes(data[:8])
+            chunk = data[8:]
+            logger.info(f"Received chunk {sequence_number}!")
                 
             # ...process by plugin if specified...
             if self.use_plugin:
@@ -136,6 +150,6 @@ class Receiver:
         if method == "file" or method == "both":  # Wave
             wf.close()
         sockfd.close()  # Sockets
-        if self.benchmark_on:
-            timestamp_logger.close()
+        # if self.benchmark_on:
+        #     timestamp_logger.close()
         sys.exit()

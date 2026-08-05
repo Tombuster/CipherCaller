@@ -56,6 +56,21 @@ class Plugin(ABC):
         raise NotImplementedError(
             f"{type(self).__name__} does not implement sender_key_exchange()"
         )
+
+    def receiver_extend_buffer(self, buffer_size: int) -> int:
+        # This function is called when initializing a Receiver object.
+        # The output of this function should be the adjusted buffer size used for recvfrom()
+        #
+        # Mostly used to acommodate paddings and other factors that may influence
+        # the length of transmitted sound data.
+        #
+        # If no adjustments are needed, please uncomment the following line and delete the error below it:
+
+        # return buffer_size
+        
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement receiver_extend_buffer()"
+        )
     
     def receiver_decrypt_chunk(self, chunk: bytes) -> bytes:
         # This function is called for each data chunk received by the receiver.

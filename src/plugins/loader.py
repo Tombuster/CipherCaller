@@ -20,7 +20,7 @@ def load_plugin(config: dict) -> Plugin | None:
         return None
     
     # Delete '.py' ending from 'name' just in case
-    if len(name > 3) and name[-3:-1] == ".py":
+    if len(name) > 3 and name[-3:-1] == ".py":
         name = name[:-3]
     
     # Try importing module specified in config

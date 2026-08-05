@@ -5,14 +5,15 @@ A program for encrypted voice transmission and its evaluation
 > [!NOTE]
 > This program is still in the early stages of development. This description covers currrent capabilities, however more features are on the way!
 
-In the present moment, the program is able to stream an input file between two containers over UDP. Below is a brief road map of upcoming features:
+In the present moment, the program is able to stream an input file between two containers over UDP. Optional AES encryption is available through the example plugin. Below is a brief road map of upcoming features:
 - [x] Basic file stream between containers
 - [x] Cryptography plug-in system
+- [ ] Dropped datagram detection
 - [ ] Example plugins
 - [ ] Performance measurement system
+- [ ] Real-time simulation for file input
 - [ ] Microphone input
 - [ ] Speaker output
-- [ ] Real-time simulation for file input
 
 
 ### Basic usage

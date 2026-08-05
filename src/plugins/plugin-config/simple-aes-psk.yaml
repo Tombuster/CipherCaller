@@ -1,0 +1,3 @@
+key_length: 16  # [16, 24, 32] correspond to AES-128, AES-192, AES-256
+password: thekeyispassword  # used as input for PBKDF2
+salt: SodiumChloride  # for performance testing purposes only! When actually securing comminucations please generate randomly!

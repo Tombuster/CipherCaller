@@ -14,6 +14,7 @@ services:
         volumes:
             - ./config.yaml:/ciphercaller/config.yaml:ro
             - ./media:/ciphercaller/media:rw   # TODO: change back to :ro after debugging
+            - ./measurements:/ciphercaller/measurements:wo
         networks:
             - transmission_net
         depends_on:
@@ -36,6 +37,7 @@ services:
         volumes:
             - ./config.yaml:/ciphercaller/config.yaml:ro
             - ./media:/ciphercaller/media:wo
+            - ./measurements:/ciphercaller/measurements:wo
         networks:
             - transmission_net
     # === FOR LIVE SPEAKER OUTPUT === #
