@@ -10,7 +10,7 @@ In the present moment, the program is able to stream an input file between two c
 - [x] Cryptography plug-in system
 - [ ] Dropped datagram detection
 - [ ] Example plugins
-- [ ] Performance measurement system
+- [x] Performance measurement system
 - [ ] Real-time simulation for file input
 - [ ] Microphone input
 - [ ] Speaker output

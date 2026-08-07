@@ -12,7 +12,7 @@ output:
   file_path: media/output/example.wav  # Output file path for "file" and "both" modes
 
 benchmarking:  # Measurements will apprear in Ciphercaller/measurements
-  log_timestamps: no  # [yes, no]
+  log_timestamps: yes  # [yes, no]
 
 pyaudio:  # Microphone input parameters
   chunk_size: 1024  # how many audio frames are sent in each datagram, cipher block etc.

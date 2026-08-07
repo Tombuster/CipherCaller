@@ -16,6 +16,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY ciphercaller-launch.py .
 COPY src/ src/
-RUN pip install --no-cache-dir -r src/plugins/plugin-requirements.txt
+RUN pip install --no-cache-dir -r src/plugins/util/plugin-requirements.txt
 
 ENTRYPOINT ["python", "ciphercaller-launch.py"]

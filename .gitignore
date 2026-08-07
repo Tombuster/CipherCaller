@@ -226,3 +226,6 @@ media/input/*
 media/output/*
 !media/input/example.wav
 !media/output/example.wav
+
+# Don't track benchmark measurements
+measurements/

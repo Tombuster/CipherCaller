@@ -2,7 +2,7 @@
 #
 # You can use this file as reference for implementing plugins that suit your needs
 
-from src.plugins.template_plugin import Plugin
+from src.plugins.util.template_plugin import Plugin
 import logging
 import socket
 import yaml

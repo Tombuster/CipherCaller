@@ -41,7 +41,7 @@ def load_plugin(config: dict) -> Plugin | None:
             and issubclass(cls, Plugin)
             and cls is not Plugin
         ):
-            logger.info(f"Loaded plugin {cls.__name__} ({module_path})")
+            logger.info(f"Loaded plugin '{cls.__name__}' ({module_path})")
             return cls(config)
 
     # If no Plugin subclass is found:

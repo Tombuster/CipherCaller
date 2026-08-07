@@ -5,8 +5,9 @@ import socket  # web sockets api
 import jack  # host audio device I/O, might switch to portaudio but this is more low-level
 import sys  # exit()
 import time  # performance measurements + sleep
-import csv  # performance logging maybe
-from src.plugins.loader import load_plugin
+from src.plugins.util.loader import load_plugin
+from src.benchmarking import TimestampLogger
+
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,7 @@ class Sender:
         if config["benchmarking"].get("log_timestamps", False):  # Note: pyyaml swaps yes, no, on and off to True and False!
             self.benchmark_on = True
             self.benchmark_params = config["benchmarking"]
+            self.benchmark_logger = TimestampLogger(self.config, "sender")
         else:
             self.benchmark_on = False
         # Plugins
@@ -51,7 +53,9 @@ class Sender:
             chunk = self.plugin.sender_encrypt_chunk(chunk)
         # ...Add a squence number...
         chunk = self.chunks_sent + chunk
-
+        # ...Log timestamp...
+        if self.benchmark_on:
+            self.benchmark_logger.save_timestamp(time.perf_counter())
         return chunk
 
 
@@ -125,6 +129,11 @@ class Sender:
             debug_wf.setsampwidth(self.pyaudio_params["sample_width_bytes"])
             debug_wf.setframerate(self.pyaudio_params["rate"])
 
+        # Set up performance logging
+        if self.benchmark_on:
+            self.benchmark_logger.write_headers(["Sequence number", "Chunk read", "Chunk processed", "Chunk transmitted"])
+            logger.info(f"Set up performance logging into file '{self.benchmark_logger.get_file_name()}'")
+
         # Finish set up
         logger.info("Sender setup complete!")
 
@@ -134,7 +143,7 @@ class Sender:
             self.plugin.sender_key_exchange(sockfd)
 
     # === TRANSMIT === #
-        logger.info(f"Waiting {self.socket_params["sender_delay_ms"]/1000} seconds to allow for receiver to bind... (Change in config.yaml -> sockets -> sender_delay_ms)")
+        logger.info(f"Waiting {self.socket_params["sender_delay_ms"]/1000} seconds to allow for receiver to bind... (config.yaml -> sockets -> sender_delay_ms)")
         time.sleep(self.socket_params["sender_delay_ms"]/1000)
         # Stream microphone input to receiver
         if method == "microphone":
@@ -150,6 +159,11 @@ class Sender:
                     # Read chunk from microphone stream...
                     chunk = microphone_stream.read(self.pyaudio_params["chunk_size"])
 
+                    # ...Log timestamp...
+                    if self.benchmark_on:
+                        self.benchmark_logger.new_line(int.from_bytes(self.chunks_sent))
+                        self.benchmark_logger.save_timestamp(time.perf_counter())
+
                     # ...Write to debug output...
                     if self.debug_write_file:
                         debug_wf.writeframes(chunk)
@@ -158,7 +172,13 @@ class Sender:
                     chunk = self.process_chunk_for_sending(chunk)
 
                     # ...And transmit to receiver
-                    self.send_stream_chunk_to_host(chunk, sockfd)  # TODO: Pack chunks_sent into the packet, too!
+                    self.send_stream_chunk_to_host(chunk, sockfd)
+
+                    # Log final sender timestamp
+                    if self.benchmark_on:
+                        self.benchmark_logger.save_timestamp(time.perf_counter())
+                        self.benchmark_logger.write_line()
+                    
                     logger.info(f"Sent chunk {int.from_bytes(self.chunks_sent)} [{len(chunk)}]")
                     self.increment_chunks_sent_mod()
                 except KeyboardInterrupt:
@@ -171,6 +191,11 @@ class Sender:
             # Read consecutive chunks...
             while len(chunk := wf.readframes(self.pyaudio_params["chunk_size"])):
 
+                # ...Log timestamp...
+                if self.benchmark_on:
+                    self.benchmark_logger.new_line(int.from_bytes(self.chunks_sent))
+                    self.benchmark_logger.save_timestamp(time.perf_counter())
+                
                 # ...Write to debug output...
                 if self.debug_write_file:
                     debug_wf.writeframes(chunk)
@@ -180,6 +205,12 @@ class Sender:
 
                 # ...And transmit to receiver
                 self.send_stream_chunk_to_host(chunk, sockfd)
+
+                # Log final sender timestamp
+                if self.benchmark_on:
+                    self.benchmark_logger.save_timestamp(time.perf_counter())
+                    self.benchmark_logger.write_line()
+                
                 logger.info(f"Sent chunk {int.from_bytes(self.chunks_sent)} [{len(chunk)}]")
                 self.increment_chunks_sent_mod()
                 # logger.info(f"Sent chunk length: {len(chunk)}")
