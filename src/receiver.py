@@ -2,7 +2,6 @@ import logging  # logs
 import pyaudio  # audio I/O
 import wave  # wav files
 import socket  # web sockets api
-import jack  # host audio device I/O, might switch to portaudio but this is more low-level
 import sys  # exit()
 import time  # performance measurements + sleep
 from src.plugins.util.loader import load_plugin
@@ -30,7 +29,7 @@ class Receiver:
             logger.info("Loading plugin...")
             self.use_plugin = True
             self.plugin_params = config["plugin"]
-            self.plugin = load_plugin(self.config)  # TODO: Stop here or proceed on None?
+            self.plugin = load_plugin(self.config)
         else:
             self.use_plugin = False
         # Sockets recvfrom buffer size
@@ -62,16 +61,27 @@ class Receiver:
         output_file_path = self.output_params.get("file_path", "/media/output/output.wav")
 
         if method == "playback" or method == "both":
-        # TODO: Set up JACK client
-
-
         # Set up pyaudio output stream
             p = pyaudio.PyAudio()
             pyaudio_output_stream = p.open(format=pyaudio.get_format_from_width(self.pyaudio_params["sample_width_bytes"]),
                 channels=self.pyaudio_params["channels"],
                 rate=self.pyaudio_params["rate"],
                 output=True,
-                output_device_index=0)
+                output_device_index=self.output_params.get("output_device_index"))
+            logger.info("+----- OUTPUT DEVICES INFO -----")
+            # https://stackoverflow.com/a/39677871 modified for logger.info
+            info = p.get_host_api_info_by_index(0)
+            numdevices = info.get('deviceCount')
+            selected = self.output_params.get("output_device_index")
+            for i in range(0, numdevices):
+                if (p.get_device_info_by_host_api_device_index(0, i).get('maxOutputChannels')) > 0:  # is input device
+                    device_info = p.get_device_info_by_host_api_device_index(0, i)
+                    logger.info(f"| {">" if i == selected else " "} Output Device id {i}: {"(SELECTED)" if i == selected else ""}")
+                    logger.info(f"|     name: {device_info.get('name')}")
+                    logger.info(f"|     sample rate: {device_info.get('defaultSampleRate')}")
+            logger.info("|")
+            logger.info("| (config.yaml -> output -> output_device_index)")
+            logger.info("+------------------------------")
         
         # Set up wav file output
         if method == "file" or method == "both":
@@ -95,7 +105,7 @@ class Receiver:
         # Set up performance logging
         if self.benchmark_on:
             benchmark_logger = TimestampLogger(self.config, "receiver")
-            benchmark_logger.write_headers(["Sequence number", "Chunk received", "Chunk processed"])
+            benchmark_logger.write_headers(["Sequence number", "Chunk received", "Chunk processed", "Chunk played"])
             logger.info(f"Set up performance logging into file '{benchmark_logger.get_file_name()}'")
 
         # Finish set up
@@ -111,7 +121,7 @@ class Receiver:
             try:
                 data = self.receive_stream_chunk_from_host(sockfd)
             except socket.timeout:
-                logger.warning(f"Receiver warning: Socket timeout ({socket_timeout} s) exceeded!")
+                logger.warning(f"Receiver warning: Socket timeout ({socket_timeout} s) exceeded! (config.yaml -> sockets -> receiver_timeout_ms)")
                 break
 
             # ...separate the sequence number...
@@ -132,14 +142,16 @@ class Receiver:
             # ...log processing end timestamp...
             if self.benchmark_on:
                 benchmark_logger.save_timestamp(time.perf_counter())
-                benchmark_logger.write_line()
  
             # ...and output result
             if method == "playback" or method == "both":
                 pyaudio_output_stream.write(chunk)
+                benchmark_logger.save_timestamp(time.perf_counter())
             if method == "file" or method == "both":
                 wf.writeframes(chunk)
 
+            # Commit timestamps
+            benchmark_logger.write_line()
 
     # === CLEAN UP === #
         if self.use_plugin:  # Plugin
@@ -148,8 +160,6 @@ class Receiver:
             # PyAudio
             pyaudio_output_stream.close()
             p.terminate()
-            # TODO: JACK
-
         if method == "file" or method == "both":  # Wave
             wf.close()
         sockfd.close()  # Sockets

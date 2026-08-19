@@ -1,23 +1,26 @@
 # This is a basic CipherCaller configuration file.
 #
 # "Default" values refer to values assumed by the program if the relevant key is missing from the configuration file.
-# For further guidance, please visit the project wiki https://github.com/Tombuster/CipherCaller/wiki
+# For further guidance, please visit the project wiki at https://github.com/Tombuster/CipherCaller/wiki
 
 input:
-  method: file  # [microphone, file]. Operation mode. Default value is "file"
+  method: file  # [microphone, file]. Operation mode. Default value is "file".
   file_path: media/input/example.wav  # Input file path for "file" mode
+  input_device_index: 0  # Device index for pyaudio input (most likely microphone). A list is displayed upon program statup
+  simulate_realtime: yes  # [yes, no]. only effective in "file" mode
 
 output:
   method: file  # [file, playback, both]. Operation mode. Default value is "file"
   file_path: media/output/example.wav  # Output file path for "file" and "both" modes
+  output_device_index: 0  # Device index for pyaudio output (most likely speakers / headphones)
 
 benchmarking:  # Measurements will apprear in Ciphercaller/measurements
   log_timestamps: yes  # [yes, no]
 
 pyaudio:  # Microphone input parameters
-  chunk_size: 1024  # how many audio frames are sent in each datagram, cipher block etc.
+  chunk_size: 4800  # how many audio frames are processed at once. Adjust this parameter up if chunk processing time exceeds the real-time window.
   channels: 1
-  rate: 44100
+  rate: 48000
   sample_width_bytes: 2 # [1, 2, 4]. Corresponds to 8b, 16b and 32b integers. Value of 3 is technically supported, though reading a file results in mostly noise...
 
 sockets:
@@ -27,8 +30,6 @@ sockets:
   sender_delay_ms: 1000  # Delay before streaming starts, used to let receiver socket bind
   receiver_timeout_ms: 10000  # Denotes the delay between receiving a datagram and breaking the receiving loop. Must exceed sender startup time
 
-# jack:  # might be needed
-
 logging:
   level: INFO
 
@@ -36,7 +37,7 @@ plugin:
   # Plugin configuration
   # When creating your own plugin, you can include its keys in this section
   use_plugin: yes  # [yes, no]. Default value is "no"
-  name: simple-aes-psk  # Name of Python file containing desired plugin. MUST be in the src/plugins/ directory!
+  name: kyber-aes256  # Name of Python file containing desired plugin. MUST be in the src/plugins/ directory!
   config_path: src/plugins/plugin-config/simple-aes-psk.yaml
 
 debug:

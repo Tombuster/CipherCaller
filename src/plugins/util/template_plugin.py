@@ -23,7 +23,7 @@ class Plugin(ABC):
 
 
 # === SENDER METHODS === #
-    def sender_key_exchange(self, sockfd: socket) -> None:
+    def sender_key_exchange(self, sockfd: socket.socket) -> None:
         # This function is called during sender initialization.
         #
         # Note: If you don't want a key exchange in your plugin,
@@ -48,7 +48,7 @@ class Plugin(ABC):
 
 
 # === RECEIVER METHODS === #
-    def receiver_key_exchange(self, sockfd: socket) -> None:
+    def receiver_key_exchange(self, sockfd: socket.socket) -> None:
         # This function is called during receiver initialization.
         #
         # Note: If you don't want a key exchange in your plugin,

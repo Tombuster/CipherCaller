@@ -64,7 +64,7 @@ class SimpleAesPsk(Plugin):
         
 
 # === SENDER METHODS === #
-    def sender_key_exchange(self, sockfd: socket) -> None:
+    def sender_key_exchange(self, sockfd: socket.socket) -> None:
         return
     
     def sender_encrypt_chunk(self, chunk: bytes) -> bytes:
@@ -87,7 +87,7 @@ class SimpleAesPsk(Plugin):
 
 
 # === RECEIVER METHODS === #
-    def receiver_key_exchange(self, sockfd: socket) -> None:
+    def receiver_key_exchange(self, sockfd: socket.socket) -> None:
         return
     
     def receiver_extend_buffer(self, buffer_size: int) -> int:
@@ -112,7 +112,7 @@ class SimpleAesPsk(Plugin):
         # logger.info(f"Receiver: chunk tail: {chunk[-10:]}")
         # logger.info(f"Receiver: chunk length: {len(chunk)}")
         if len(chunk) % AES.block_size != 0:
-            chunk = unpad(chunk, AES.block_size)            # unpad,
+            chunk = unpad(chunk, AES.block_size)            # unpad,  TODO: this is unreachabe because every padded message will also give modulo = 0! Changing this to a try/except gives bad outputs
         return chunk
     
     def receiver_cleanup(self) -> None:

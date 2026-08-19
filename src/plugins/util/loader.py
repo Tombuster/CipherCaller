@@ -10,14 +10,16 @@ import importlib
 logger = logging.getLogger(__name__)
 
 # The following function is entered assuming use_plugin key is set to 'yes'
-def load_plugin(config: dict) -> Plugin | None:
+def load_plugin(config: dict) -> Plugin:
     # Get 'name' key value from config.yaml -> plugin
     name = config.get("plugin", {}).get("name", None)
 
     # Notify user if 'name' not present and return None
     if not name:
-        logger.info("Plugin name not supplied in configuration! (config.yaml -> plugin -> name)")  # TODO: Stop here or proceed without plugin?
-        return None
+        logger.info("Plugin name not supplied in configuration! (config.yaml -> plugin -> name)")
+        raise ImportError(
+            f"Plugin name not supplied in configuration! (config.yaml -> plugin -> name)"
+        )
     
     # Delete '.py' ending from 'name' just in case
     if len(name) > 3 and name[-3:-1] == ".py":
@@ -29,7 +31,7 @@ def load_plugin(config: dict) -> Plugin | None:
         module = importlib.import_module(module_path)
     except ImportError:
         raise ImportError(
-            f"Plugin '{name}' not found. Tried loading from path: {module_path}. Please ensure the specified plugin is located in the src/plugins/ directory!"
+            f"Plugin '{name}' not found. Tried loading from path: {module_path}. Please ensure the specified plugin is located in the 'src/plugins/' directory!"
         )
 
     # Get Plugin subclass from module
@@ -46,5 +48,5 @@ def load_plugin(config: dict) -> Plugin | None:
 
     # If no Plugin subclass is found:
     raise RuntimeError(
-        f"No Plugin subclass found in {module_path}. Please define a class that inherits from Plugin! (see: src/plugins/template_plugin.py)"
+        f"No Plugin subclass found in {module_path}. Please define a class that inherits from Plugin! (see: src/plugins/util/template_plugin.py)"
     ) 

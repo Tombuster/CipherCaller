@@ -2,7 +2,6 @@ import logging  # logs
 import pyaudio  # audio I/O
 import wave  # wav files
 import socket  # web sockets api
-import jack  # host audio device I/O, might switch to portaudio but this is more low-level
 import sys  # exit()
 import time  # performance measurements + sleep
 from src.plugins.util.loader import load_plugin
@@ -18,7 +17,9 @@ class Sender:
         self.input_params = config["input"]
         self.pyaudio_params = config["pyaudio"]
         self.socket_params = config["sockets"]
+        self.simulate_realtime = self.input_params.get("simulate_realtime", False)
         self.chunks_sent = bytes(8)  # 32-bit counter (borrowed from TCP)
+        self.ideal_chunk_time = self.pyaudio_params.get("chunk_size") / self.pyaudio_params.get("rate")
         # Benchmarking
         if config["benchmarking"].get("log_timestamps", False):  # Note: pyyaml swaps yes, no, on and off to True and False!
             self.benchmark_on = True
@@ -31,7 +32,7 @@ class Sender:
             logger.info("Loading plugin...")
             self.use_plugin = True
             self.plugin_params = config["plugin"]
-            self.plugin = load_plugin(self.config)  # TODO: Stop here or proceed on None?
+            self.plugin = load_plugin(self.config)
         else:
             self.use_plugin = False
         # Sender debug
@@ -65,6 +66,16 @@ class Sender:
              int(self.socket_params["port"])))
         return
 
+    def realtime_sleep(self, read_start: float, read_end: float) -> None:
+        # read_start and read_end - fractional seconds form time.perf_counter()
+        read_time = read_end - read_start
+        if read_time > self.ideal_chunk_time:  # took longer to read than real-time input
+            logger.warning(f"Chunk exceeded real-time processing time window! Time: {read_time}s, Target: {self.ideal_chunk_time}s")
+            return
+        logger.info(f"Delaying next chunk by {self.ideal_chunk_time - read_time} s")
+        time.sleep(self.ideal_chunk_time - read_time)  # TODO: Determine sleep duration
+        return
+
 
     def run(self):
     # === SET UP === #
@@ -76,19 +87,30 @@ class Sender:
         input_file_path = self.input_params.get("file_path", "/media/input/input.wav")
 
         if method == "microphone":
-        # # TODO: Set up JACK client
-        #     jack_client = jack.Client("CipherCaller_mic_input")
-        #     jack_input = jack_client.inports.register('input_1')
-        #     print(jack_client.get_ports())
-
+            p = pyaudio.PyAudio()
+            logger.info("+----- INPUT DEVICES INFO -----")
+            # https://stackoverflow.com/a/39677871 modified for logger.info
+            info = p.get_host_api_info_by_index(0)
+            numdevices = info.get('deviceCount')
+            selected = self.input_params.get("input_device_index")
+            for i in range(0, numdevices):
+                if (p.get_device_info_by_host_api_device_index(0, i).get('maxInputChannels')) > 0:  # is input device
+                    device_info = p.get_device_info_by_host_api_device_index(0, i)
+                    logger.info(f"| {">" if i == selected else " "} Input Device id {i}: {"(SELECTED)" if i == selected else ""}")
+                    logger.info(f"|     name: {device_info.get('name')}")
+                    logger.info(f"|     sample rate: {device_info.get('defaultSampleRate')}")
+            logger.info("|")
+            logger.info("| (config.yaml -> input -> input_device_index)")
+            logger.info("+------------------------------")
             # Set up microphone data stream
             # Based on https://people.csail.mit.edu/hubert/pyaudio/#record-example
-            p = pyaudio.PyAudio()
             microphone_stream = p.open(format=pyaudio.get_format_from_width(self.pyaudio_params["sample_width_bytes"]),
                 channels=self.pyaudio_params["channels"],
                 rate=self.pyaudio_params["rate"],
                 input=True,
-                frames_per_buffer=self.pyaudio_params["chunk_size"])
+                frames_per_buffer=self.pyaudio_params["chunk_size"],
+                input_device_index=self.input_params.get("input_device_index"))
+
         # Set up wave file input
         elif method == "file":
             try:
@@ -115,7 +137,7 @@ class Sender:
 
         # Debug
         if self.debug_write_file:
-            output_file_path = self.input_params.get("debug_out_file_path", "/media/output/sender_output.wav")
+            output_file_path = self.input_params.get("debug_out_file_path", "media/output/sender_output.wav")
             try:
                 debug_wf = wave.open(output_file_path, 'w')
             except FileNotFoundError:
@@ -139,12 +161,13 @@ class Sender:
 
 
     # === KEY EXCHANGE === #
+        logger.info(f"Waiting {self.socket_params["sender_delay_ms"]/1000} seconds to allow for receiver to bind... (config.yaml -> sockets -> sender_delay_ms)")
+        time.sleep(self.socket_params["sender_delay_ms"]/1000)
         if self.use_plugin:
             self.plugin.sender_key_exchange(sockfd)
 
     # === TRANSMIT === #
-        logger.info(f"Waiting {self.socket_params["sender_delay_ms"]/1000} seconds to allow for receiver to bind... (config.yaml -> sockets -> sender_delay_ms)")
-        time.sleep(self.socket_params["sender_delay_ms"]/1000)
+        transmission_start = time.perf_counter()
         # Stream microphone input to receiver
         if method == "microphone":
             # Inform user that transmission will start shortly
@@ -154,10 +177,11 @@ class Sender:
                 time.sleep(1)
             logger.info("Sending audio. Press Ctrl+C to stop")
             # Transmit chunks
+            chunk_start = time.perf_counter()
             while True:
                 try:
                     # Read chunk from microphone stream...
-                    chunk = microphone_stream.read(self.pyaudio_params["chunk_size"])
+                    chunk = microphone_stream.read(self.pyaudio_params["chunk_size"], exception_on_overflow=False)  # TODO: OSError: [Errno -9981] Input overflowed
 
                     # ...Log timestamp...
                     if self.benchmark_on:
@@ -179,15 +203,25 @@ class Sender:
                         self.benchmark_logger.save_timestamp(time.perf_counter())
                         self.benchmark_logger.write_line()
                     
-                    logger.info(f"Sent chunk {int.from_bytes(self.chunks_sent)} [{len(chunk)}]")
+                    logger.info(f"Sent chunk {int.from_bytes(self.chunks_sent)} [{len(chunk)}B]")
                     self.increment_chunks_sent_mod()
-                except KeyboardInterrupt:
+
+                    chunk_end = time.perf_counter()
+                    processing_time = chunk_end - chunk_start
+                    if processing_time > self.ideal_chunk_time:
+                        logger.warning(f"Chunk exceeded real-time processing time window!  Time: {processing_time}s, Target: {self.ideal_chunk_time}s")
+                    else:
+                        logger.info(f"Chunk processing time OK! ({processing_time}s, should be under or equal {self.ideal_chunk_time}s)")
+                    chunk_start = chunk_end
+                except KeyboardInterrupt:  # TODO: Doesn't work with compose attached, change to different method
                     logger.info("Ctrl+C detected, stopping transmission...")
                     break
         
         # Stream file contents to receiver
         elif method == "file":
             logger.info(f"Sending contents of {input_file_path} to {self.socket_params["receiver_host"]}...")
+            if self.simulate_realtime:
+                chunk_start = time.perf_counter()
             # Read consecutive chunks...
             while len(chunk := wf.readframes(self.pyaudio_params["chunk_size"])):
 
@@ -211,14 +245,17 @@ class Sender:
                     self.benchmark_logger.save_timestamp(time.perf_counter())
                     self.benchmark_logger.write_line()
                 
-                logger.info(f"Sent chunk {int.from_bytes(self.chunks_sent)} [{len(chunk)}]")
+                logger.info(f"Sent chunk {int.from_bytes(self.chunks_sent)} [{len(chunk)}B]")
                 self.increment_chunks_sent_mod()
                 # logger.info(f"Sent chunk length: {len(chunk)}")
-                # Then wait a bit to simulate real-time playback
-                # sleep(0.01)
+                
+                if self.simulate_realtime:
+                    chunk_end = time.perf_counter()
+                    self.realtime_sleep(chunk_start, chunk_end)
+                    chunk_start = time.perf_counter()
         
         # Notify user about ending transmission
-        logger.info("Transmission finished!")
+        logger.info(f"Transmission finished! Duration: {time.perf_counter() - transmission_start} seconds")
 
     # === CLEAN UP === #
         if self.use_plugin:  # Plugin
@@ -227,8 +264,6 @@ class Sender:
             # PyAudio
             microphone_stream.close()
             p.terminate()
-            # TODO: JACK
-
         elif method == "file":  # Wave
             wf.close()
         sockfd.close()  # Sockets
