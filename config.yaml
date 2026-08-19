@@ -28,7 +28,8 @@ sockets:
   # receiver_address:  # Address supplied to receiver's socket.bind() command; Default is ""
   port: 2004
   sender_delay_ms: 1000  # Delay before streaming starts, used to let receiver socket bind
-  receiver_timeout_ms: 10000  # Denotes the delay between receiving a datagram and breaking the receiving loop. Must exceed sender startup time
+  sender_timeout_ms: 10000  # Sender socket receive timeout. Mainly applies to key exchange.
+  receiver_timeout_ms: 10000  # Receiver socket receive timeout. Used for breaking the receiving loop and applies to key exchange. Must exceed sender startup time
 
 logging:
   level: INFO
@@ -37,7 +38,7 @@ plugin:
   # Plugin configuration
   # When creating your own plugin, you can include its keys in this section
   use_plugin: yes  # [yes, no]. Default value is "no"
-  name: kyber-aes256  # Name of Python file containing desired plugin. MUST be in the src/plugins/ directory!
+  name: simple-aes-psk  # Name of Python file containing desired plugin. MUST be in the src/plugins/ directory!
   config_path: src/plugins/plugin-config/simple-aes-psk.yaml
 
 debug:

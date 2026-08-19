@@ -66,12 +66,13 @@ class Sender:
              int(self.socket_params["port"])))
         return
 
-    def realtime_sleep(self, read_start: float, read_end: float) -> None:
-        # read_start and read_end - fractional seconds form time.perf_counter()
+    def realtime_sleep(self, read_start: float, read_end: float) -> None:  # TODO: needs some tweaking, sometimes sleeps too long
+        # read_start and read_end - fractional seconds from time.perf_counter()
         read_time = read_end - read_start
-        if read_time > self.ideal_chunk_time:  # took longer to read than real-time input
+        if read_time > self.ideal_chunk_time:  # took longer to read & process than real-time input requires
             logger.warning(f"Chunk exceeded real-time processing time window! Time: {read_time}s, Target: {self.ideal_chunk_time}s")
             return
+        logger.info(f"Chunk processing time: {read_time}s, target: {self.ideal_chunk_time}s")
         logger.info(f"Delaying next chunk by {self.ideal_chunk_time - read_time} s")
         time.sleep(self.ideal_chunk_time - read_time)  # TODO: Determine sleep duration
         return

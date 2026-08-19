@@ -225,6 +225,7 @@ notes.md
 media/input/*
 media/output/*
 !media/input/example.wav
+!media/input/1-chunk.wav
 !media/output/example.wav
 
 # Don't track benchmark measurements
