@@ -3,14 +3,9 @@ FROM python:3.12-trixie
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-    gcc cmake git python3-all-dev \ 
+    gcc cmake git python3-all-dev  ffmpeg\ 
     libasound-dev libportaudio2 libportaudiocpp0 portaudio19-dev \
     && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /ciphercaller
-
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
 
 # liboqs installation commands from: https://github.com/open-quantum-safe/liboqs-python/blob/main/Dockerfile
 # Get liboqs
@@ -26,6 +21,11 @@ RUN cmake -S liboqs -B liboqs/build \
     cmake --build liboqs/build --target install
 
 ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib
+
+WORKDIR /ciphercaller
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY ciphercaller-launch.py .
 COPY src/ src/

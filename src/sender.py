@@ -4,6 +4,8 @@ import wave  # wav files
 import socket  # web sockets api
 import sys  # exit()
 import time  # performance measurements + sleep
+import subprocess  # FFmpeg pipe
+import os  # os.read() for reading data chunks from ffmpeg pipe
 from src.plugins.util.loader import load_plugin
 from src.benchmarking import TimestampLogger
 
@@ -41,14 +43,59 @@ class Sender:
             self.debug_write_file = True
         else:
             self.debug_write_file = False
+        # FFmpeg
+        if config["ffmpeg"].get("use_ffmpeg", False):
+            self.use_ffmpeg = True
+            self.ffmpeg_params = config["ffmpeg"]
 
 
+    def build_ffmpeg_base(self) -> list[str]:
+        ffmpeg_base = ["ffmpeg", "-hide_banner"]
+
+        if self.ffmpeg_params.get("simulate_realtime", True):
+            ffmpeg_base.append("-re")  # realtime simulation
+
+        ffmpeg_base.append("-i")
+        ffmpeg_base.append(self.input_params.get("file_path", "/media/input/input.wav"))
+
+        if self.ffmpeg_params.get("sample_format", None) is not None:
+            ffmpeg_base.append("-f") 
+            ffmpeg_base.append(self.ffmpeg_params["sample_format"])
+        else:
+            logger.error("FFmpeg argument error: 'sample_format' key missing or invalid value supplied!")
+            exit()  # TODO: set exit code
+
+        if self.ffmpeg_params.get("codec", None) is not None:
+            ffmpeg_base.append("-c:a") 
+            ffmpeg_base.append(self.ffmpeg_params["codec"])
+        else:
+            logger.error("FFmpeg argument error: 'codec' key missing or invalid value supplied!")
+            exit()  # TODO: set exit code
+
+        if self.ffmpeg_params.get("sample_rate", None) is not None:
+            ffmpeg_base.append("-ar") 
+            ffmpeg_base.append(str(self.ffmpeg_params["sample_rate"]))
+        else:
+            logger.error("FFmpeg argument error: 'sample_rate' key missing or invalid value supplied!")
+            exit()  # TODO: set exit code
+
+        if self.ffmpeg_params.get("channels", None) is not None:
+            ffmpeg_base.append("-ac") 
+            ffmpeg_base.append(str(self.ffmpeg_params["channels"]))
+        else:
+            logger.error("FFmpeg argument error: 'channels' key missing or invalid value supplied!")
+            exit()  # TODO: set exit code
+        ffmpeg_base.append("pipe:1")
+        return ffmpeg_base
+
+    
     def increment_chunks_sent_mod(self) -> None:
-        self.chunks_sent = (int.to_bytes((int.from_bytes(self.chunks_sent) + 1) % 0xFFFFFFFF, length=8))
+        self.chunks_sent = (int.to_bytes((int.from_bytes(self.chunks_sent) + 1) % 0xFFFFFFFE, length=8))
         #logger.info(f"chunks_sent: {self.chunks_sent} ({int.from_bytes(self.chunks_sent)})")
 
 
     def process_chunk_for_sending(self, chunk: bytes) -> bytes:
+        '''Run chunk through plugin, add sequence number and write timestamp'''
         # ...Encrypt...
         if self.use_plugin:
             chunk = self.plugin.sender_encrypt_chunk(chunk)
@@ -66,6 +113,7 @@ class Sender:
              int(self.socket_params["port"])))
         return
 
+
     def realtime_sleep(self, read_start: float, read_end: float) -> None:  # TODO: needs some tweaking, sometimes sleeps too long
         # read_start and read_end - fractional seconds from time.perf_counter()
         read_time = read_end - read_start
@@ -78,6 +126,78 @@ class Sender:
         return
 
 
+    def send_file_ffmpeg(self, sockfd) -> None:
+        proc = subprocess.Popen(self.ffmpeg_base, stdout=subprocess.PIPE)
+        try:
+            fd = proc.stdout.fileno()
+            while True:
+                # Get chunk
+                try:
+                    chunk = os.read(fd, self.pyaudio_params["chunk_size"])
+                except OSError as exception:
+                    logger.error(f"Read from FFmpeg pipe failed: {exception}")
+                    break
+                if not chunk:  # EOF reached
+                    break
+
+                # Log timestamp
+                if self.benchmark_on:
+                    self.benchmark_logger.new_line(int.from_bytes(self.chunks_sent))
+                    self.benchmark_logger.save_timestamp(time.perf_counter())
+
+                chunk = self.process_chunk_for_sending(chunk)
+                self.send_stream_chunk_to_host(chunk, sockfd)
+
+                # Log final sender timestamp
+                if self.benchmark_on:
+                    self.benchmark_logger.save_timestamp(time.perf_counter())
+                    self.benchmark_logger.write_line()
+
+                logger.info(f"Sent chunk {int.from_bytes(self.chunks_sent)} [{len(chunk)}B]")
+                self.increment_chunks_sent_mod()
+        finally:
+            proc.stdout.close()
+            ret = proc.wait()
+
+        if ret != 0:
+            logger.error("FFmpeg exited with code %d", ret)
+
+
+    def send_file_proprietary(self, sockfd, wf, debug_wf)-> None:
+        if self.simulate_realtime:
+            chunk_start = time.perf_counter()
+        # Read consecutive chunks...
+        while len(chunk := wf.readframes(self.pyaudio_params["chunk_size"])):
+            # ...Log timestamp...
+            if self.benchmark_on:
+                self.benchmark_logger.new_line(int.from_bytes(self.chunks_sent))
+                self.benchmark_logger.save_timestamp(time.perf_counter())
+                
+            # ...Write to debug output...
+            if self.debug_write_file:
+                debug_wf.writeframes(chunk)
+
+            # ...Process...
+            chunk = self.process_chunk_for_sending(chunk)
+            # ...And transmit to receiver
+            self.send_stream_chunk_to_host(chunk, sockfd)
+            # Log final sender timestamp
+            if self.benchmark_on:
+                self.benchmark_logger.save_timestamp(time.perf_counter())
+                self.benchmark_logger.write_line()
+                
+            logger.info(f"Sent chunk {int.from_bytes(self.chunks_sent)} [{len(chunk)}B]")
+            self.increment_chunks_sent_mod()
+            # logger.info(f"Sent chunk length: {len(chunk)}")
+                
+            if self.simulate_realtime:
+                chunk_end = time.perf_counter()
+                self.realtime_sleep(chunk_start, chunk_end)
+                chunk_start = time.perf_counter()
+
+    def send_eof(self, sockfd):
+        self.send_stream_chunk_to_host(int.to_bytes(0xFFFFFFFF, 4), sockfd)
+
     def run(self):
     # === SET UP === #
         # Set up sender socket
@@ -87,6 +207,7 @@ class Sender:
         method = self.input_params.get("method", "file")
         input_file_path = self.input_params.get("file_path", "/media/input/input.wav")
 
+        # Set up microphone input
         if method == "microphone":
             p = pyaudio.PyAudio()
             logger.info("+----- INPUT DEVICES INFO -----")
@@ -112,29 +233,33 @@ class Sender:
                 frames_per_buffer=self.pyaudio_params["chunk_size"],
                 input_device_index=self.input_params.get("input_device_index"))
 
-        # Set up wave file input
+        # Set up wave file input (no FFmpeg)
         elif method == "file":
-            try:
-                wf = wave.open(input_file_path, 'r')
-            except FileNotFoundError:
-                logger.error(f"Sender error: File {input_file_path} not found!")
-                sys.exit(2)
-            except PermissionError:
-                logger.error(f"Sender error: Permission denied for file {input_file_path}!")
-                sys.exit(3)
-            logger.info(f"Opened file '{input_file_path}' successfully!")
-            # Print file info
-            logger.info("+--- INPUT FILE STATS ---")
-            logger.info(f"| File sample width: {wf.getsampwidth()}, expected (config value): {self.pyaudio_params["sample_width_bytes"]}")
-            logger.info(f"| File framerate: {wf.getframerate()}, expected (config value): {self.pyaudio_params["rate"]}")
-            logger.info(f"| File channels: {wf.getnchannels()}, expected (config value): {self.pyaudio_params["channels"]}")
-            logger.info(f"| File compression type: {wf.getcompname()}")
-            logger.info("+------------------------")
+            if not self.use_ffmpeg:
+                try:
+                    wf = wave.open(input_file_path, 'r')
+                except FileNotFoundError:
+                    logger.error(f"Sender error: File {input_file_path} not found!")
+                    sys.exit(2)
+                except PermissionError:
+                    logger.error(f"Sender error: Permission denied for file {input_file_path}!")
+                    sys.exit(3)
+                logger.info(f"Opened file '{input_file_path}' successfully!")
+                # Print file info
+                logger.info("+--- INPUT FILE STATS ---")
+                logger.info(f"| File sample width: {wf.getsampwidth()}, expected (config value): {self.pyaudio_params["sample_width_bytes"]}")
+                logger.info(f"| File framerate: {wf.getframerate()}, expected (config value): {self.pyaudio_params["rate"]}")
+                logger.info(f"| File channels: {wf.getnchannels()}, expected (config value): {self.pyaudio_params["channels"]}")
+                logger.info(f"| File compression type: {wf.getcompname()}")
+                logger.info("+------------------------")
 
         # Invalid mode supplied
         else:
             logger.error(f"Sender error: Unsupported operation mode: {method}! Please check the value of config.yaml -> input -> method, and refer to the documentation for supported values.")
             sys.exit(1)
+
+        # FFmpeg
+        self.ffmpeg_base = self.build_ffmpeg_base()
 
         # Debug
         if self.debug_write_file:
@@ -221,40 +346,17 @@ class Sender:
         # Stream file contents to receiver
         elif method == "file":
             logger.info(f"Sending contents of {input_file_path} to {self.socket_params["receiver_host"]}...")
-            if self.simulate_realtime:
-                chunk_start = time.perf_counter()
-            # Read consecutive chunks...
-            while len(chunk := wf.readframes(self.pyaudio_params["chunk_size"])):
+            if self.use_ffmpeg:
+                logger.info(f"Using FFmpeg...")
+                self.send_file_ffmpeg(sockfd)
 
-                # ...Log timestamp...
-                if self.benchmark_on:
-                    self.benchmark_logger.new_line(int.from_bytes(self.chunks_sent))
-                    self.benchmark_logger.save_timestamp(time.perf_counter())
-                
-                # ...Write to debug output...
-                if self.debug_write_file:
-                    debug_wf.writeframes(chunk)
-
-                # ...Process...
-                chunk = self.process_chunk_for_sending(chunk)
-
-                # ...And transmit to receiver
-                self.send_stream_chunk_to_host(chunk, sockfd)
-
-                # Log final sender timestamp
-                if self.benchmark_on:
-                    self.benchmark_logger.save_timestamp(time.perf_counter())
-                    self.benchmark_logger.write_line()
-                
-                logger.info(f"Sent chunk {int.from_bytes(self.chunks_sent)} [{len(chunk)}B]")
-                self.increment_chunks_sent_mod()
-                # logger.info(f"Sent chunk length: {len(chunk)}")
-                
-                if self.simulate_realtime:
-                    chunk_end = time.perf_counter()
-                    self.realtime_sleep(chunk_start, chunk_end)
-                    chunk_start = time.perf_counter()
+            # Use proprietary file input        
+            else:
+                logger.info(f"Using CipherCaller proprietary implementation (not recommended!)...")
+                self.send_file_proprietary(sockfd, wf, debug_wf)
         
+        logger.info(f"Sending EOF")
+        self.send_eof(sockfd)
         # Notify user about ending transmission
         logger.info(f"Transmission finished! Duration: {time.perf_counter() - transmission_start} seconds")
 
@@ -265,7 +367,7 @@ class Sender:
             # PyAudio
             microphone_stream.close()
             p.terminate()
-        elif method == "file":  # Wave
+        elif method == "file" and not self.use_ffmpeg:  # Wave
             wf.close()
         sockfd.close()  # Sockets
         sys.exit()

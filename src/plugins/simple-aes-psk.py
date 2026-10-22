@@ -70,7 +70,9 @@ class SimpleAesPsk(Plugin):
     def sender_encrypt_chunk(self, chunk: bytes) -> bytes:
         cipher = AES.new(self.key, AES.MODE_CBC)    # initiate new cipher,
         # logger.info(f"Sender: chunk length: {len(chunk)}")
+        pad_flag = 0x00
         if len(chunk) % AES.block_size != 0:
+            pad_flag = 0x01
             chunk = pad(chunk, AES.block_size)          # pad,
         # logger.info(f"Sender: chunk head:   {chunk[:10]}")
         # logger.info(f"Sender: chunk tail:   {chunk[-10:]}")
@@ -78,6 +80,7 @@ class SimpleAesPsk(Plugin):
         chunk = cipher.encrypt(chunk)               # encrypt,
         # logger.info(f"Sender: encrypted chunk length: {len(chunk)}")
         chunk = cipher.iv + chunk                   # stick iv at the front
+        chunk = int.to_bytes(pad_flag) + chunk      # add pad flag to front
         # logger.info(f"Sender: chunk length with IV: {len(chunk)}")
         # logger.info(f"Sender: sending chunk with IV: {cipher.iv}")
         return chunk
@@ -98,21 +101,24 @@ class SimpleAesPsk(Plugin):
             # logger.info(f"Receiver: ... for padding to {buffer_size}...")
         # Adjust for iv
         buffer_size += 16
+        # Adjust for pad flag
+        buffer_size += 1
         # logger.info(f"Receiver: ...for iv to: {buffer_size}")
         return buffer_size
 
 
     def receiver_decrypt_chunk(self, chunk: bytes) -> bytes:
-        iv = chunk[:16]                                     # separate iv
-        chunk = chunk[16:]                                  # from the chunk,
+        pad_flag = chunk[0]
+        iv = chunk[1:17]                                     # separate iv
+        chunk = chunk[17:]                                  # from the chunk,
         # logger.info(f"Receiver: got chunk with IV:   {iv}")
         cipher = AES.new(self.key, AES.MODE_CBC, iv=iv)     # initiate new cipher,
         chunk = cipher.decrypt(chunk)                       # decrypt,
         # logger.info(f"Receiver: chunk head: {chunk[:10]}")
         # logger.info(f"Receiver: chunk tail: {chunk[-10:]}")
         # logger.info(f"Receiver: chunk length: {len(chunk)}")
-        if len(chunk) % AES.block_size != 0:
-            chunk = unpad(chunk, AES.block_size)            # unpad,  TODO: this is unreachabe because every padded message will also give modulo = 0! Changing this to a try/except gives bad outputs
+        if pad_flag:
+            chunk = unpad(chunk, AES.block_size)
         return chunk
     
     def receiver_cleanup(self) -> None:

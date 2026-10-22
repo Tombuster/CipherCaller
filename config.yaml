@@ -1,17 +1,27 @@
 # This is a basic CipherCaller configuration file.
 #
+# If only specific values are accepted for a given key, they are given in each key's comment in square beackets.
 # "Default" values refer to values assumed by the program if the relevant key is missing from the configuration file.
+# The default values are written in ALL CAPS in the comment, but should be written in regular characters.
 # For further guidance, please visit the project wiki at https://github.com/Tombuster/CipherCaller/wiki
 
 input:
-  method: file  # [microphone, file]. Operation mode. Default value is "file".
-  file_path: media/input/example.wav  # Input file path for "file" mode
+  method: file  # [microphone, FILE]. Operation mode. Default value is "file".
+  file_path: media/input/example.wav  # Input file path for "file" mode. Default is "/media/input/input.wav"
   input_device_index: 0  # Device index for pyaudio input (most likely microphone). A list is displayed upon program statup
   simulate_realtime: yes  # [yes, no]. only effective in "file" mode
 
+ffmpeg:
+  use_ffmpeg: yes  # [YES, no].
+  simulate_realtime: yes
+  sample_format: s16le
+  codec: pcm_s16le
+  sample_rate: 48000
+  channels: 1
+
 output:
-  method: file  # [file, playback, both]. Operation mode. Default value is "file"
-  file_path: media/output/example.wav  # Output file path for "file" and "both" modes
+  method: file  # [FILE, playback, both]. Operation mode.
+  file_path: media/output/example.wav  # Output file path for "file" and "both" modes. Defaults to "/media/output/output.wav"
   output_device_index: 0  # Device index for pyaudio output (most likely speakers / headphones)
 
 benchmarking:  # Measurements will apprear in Ciphercaller/measurements
@@ -37,8 +47,8 @@ logging:
 plugin:
   # Plugin configuration
   # When creating your own plugin, you can include its keys in this section
-  use_plugin: yes  # [yes, no]. Default value is "no"
-  name: simple-aes-psk  # Name of Python file containing desired plugin. MUST be in the src/plugins/ directory!
+  use_plugin: yes  # [yes, NO]. Default value is "no"
+  name: kyber-aes256  # Name of Python file containing desired plugin. MUST be in the src/plugins/ directory!
   config_path: src/plugins/plugin-config/simple-aes-psk.yaml
 
 debug:

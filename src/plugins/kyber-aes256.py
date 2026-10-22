@@ -72,10 +72,13 @@ class KyberAES256(Plugin):
     
     def sender_encrypt_chunk(self, chunk: bytes) -> bytes:
         cipher = AES.new(self.symmetric_key, AES.MODE_CBC)
+        pad_flag = 0x00
         if len(chunk) % AES.block_size != 0:
+            pad_flag = 0x01
             chunk = pad(chunk, AES.block_size)
         chunk = cipher.encrypt(chunk)
         chunk = cipher.iv + chunk
+        chunk = int.to_bytes(pad_flag) + chunk
         return chunk
     
     def sender_cleanup(self) -> None:
@@ -101,15 +104,17 @@ class KyberAES256(Plugin):
         if buffer_size % AES.block_size != 0:
             buffer_size += (buffer_size % AES.block_size)
             buffer_size += 16
+            buffer_size += 1
         return buffer_size
 
     def receiver_decrypt_chunk(self, chunk: bytes) -> bytes:
-        iv = chunk[:16]
-        chunk = chunk[16:]
+        pad_flag = chunk[0]
+        iv = chunk[1:17]                                     # separate iv
+        chunk = chunk[17:]        
         cipher = AES.new(self.symmetric_key, AES.MODE_CBC, iv=iv)
         chunk = cipher.decrypt(chunk)
-        if len(chunk) % AES.block_size != 0:
-            chunk = unpad(chunk, AES.block_size)  # unpad,  TODO: this is unreachabe because every padded message will also give modulo = 0! Changing this to a try/except gives bad outputs
+        if pad_flag:
+            chunk = unpad(chunk, AES.block_size)
         return chunk
     
     def receiver_cleanup(self) -> None:
