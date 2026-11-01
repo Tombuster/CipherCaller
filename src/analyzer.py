@@ -134,11 +134,12 @@ class Analyzer:
     
         # Calculate transmission metrics
         logger.info("Calculating transmission metrics...")
+        input_params = self.config["input"]
         json_report = {
-            'file': [
-                {'name': input_params.get("file_name", "input.wav")},
-                {'size': os.path.getsize(f"media/input/{self.input_params.get("file_name", "input.wav")}")}
-                ]
+            'file': {
+                'name': input_params.get("file_name", "input.wav"),
+                'size': os.path.getsize(f"media/input/{input_params.get("file_name", "input.wav")}")
+                }
             }
 
         # Calculate audio metrics
@@ -148,7 +149,6 @@ class Analyzer:
     
         # Generate reports
         logger.info("Generating reports...")
-        input_params = self.config["input"]
         report_text_file.write(  # TODO: fill out the text and JSON reports
             f'''===== CipherCaller Measurement Report =====
 Date and time: {time.strftime("%d/%m/%Y %H:%M", reference_timestamp)}
@@ -202,7 +202,7 @@ Peak Signal-to-Noise Ratio (PSNR) (channel average): {ffmpeg_results["psnr"]}dB 
 Signal-to-Distortion Ratio (SDR):
 ''')
 
-        report_json_file.write()
+        # report_json_file.write()  #TODO
 
         # Remove temporary files
         self.remove_temp_files()
