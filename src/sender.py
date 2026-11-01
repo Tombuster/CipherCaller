@@ -56,7 +56,7 @@ class Sender:
             ffmpeg_base.append("-re")  # realtime simulation
 
         ffmpeg_base.append("-i")
-        ffmpeg_base.append(self.input_params.get("file_path", "/media/input/input.wav"))
+        ffmpeg_base.append(f"media/input/{self.input_params.get("file_name", "input.wav")}")
 
         if self.ffmpeg_params.get("sample_format", None) is not None:
             ffmpeg_base.append("-f") 
@@ -133,7 +133,7 @@ class Sender:
             while True:
                 # Get chunk
                 try:
-                    chunk = os.read(fd, self.pyaudio_params["chunk_size"])
+                    chunk = os.read(fd, self.ffmpeg_params["chunk_size"])
                 except OSError as exception:
                     logger.error(f"Read from FFmpeg pipe failed: {exception}")
                     break
@@ -163,7 +163,7 @@ class Sender:
             logger.error("FFmpeg exited with code %d", ret)
 
 
-    def send_file_proprietary(self, sockfd, wf, debug_wf)-> None:
+    def send_file_proprietary(self, sockfd, wf, debug_wf) -> None:
         if self.simulate_realtime:
             chunk_start = time.perf_counter()
         # Read consecutive chunks...
@@ -195,17 +195,17 @@ class Sender:
                 self.realtime_sleep(chunk_start, chunk_end)
                 chunk_start = time.perf_counter()
 
-    def send_eof(self, sockfd):
+    def send_eof(self, sockfd) -> None:
         self.send_stream_chunk_to_host(int.to_bytes(0xFFFFFFFF, 4), sockfd)
 
-    def run(self):
+    def run_transmission(self) -> None:
     # === SET UP === #
         # Set up sender socket
         sockfd = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
         # Set up input related I/O
         method = self.input_params.get("method", "file")
-        input_file_path = self.input_params.get("file_path", "/media/input/input.wav")
+        input_file_path = f"media/input/{self.input_params.get("file_name", "input.wav")}"
 
         # Set up microphone input
         if method == "microphone":
@@ -279,7 +279,7 @@ class Sender:
 
         # Set up performance logging
         if self.benchmark_on:
-            self.benchmark_logger.write_headers(["Sequence number", "Chunk read", "Chunk processed", "Chunk transmitted"])
+            # self.benchmark_logger.write_headers(["Sequence number", "Chunk read", "Chunk processed", "Chunk transmitted"])
             logger.info(f"Set up performance logging into file '{self.benchmark_logger.get_file_name()}'")
 
         # Finish set up
@@ -370,4 +370,14 @@ class Sender:
         elif method == "file" and not self.use_ffmpeg:  # Wave
             wf.close()
         sockfd.close()  # Sockets
-        sys.exit()
+        return
+
+
+    def run_key_exchange_benchmark(self, config):
+    # === SET UP === #
+        # Set up sender socket
+        sockfd = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        # Benchmarking
+        if not self.benchmark_on:
+            logger.warning("Trying to run key exchange benchmark without saving timestamps!")
+            sys.exit()

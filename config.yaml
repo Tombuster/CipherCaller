@@ -5,27 +5,31 @@
 # The default values are written in ALL CAPS in the comment, but should be written in regular characters.
 # For further guidance, please visit the project wiki at https://github.com/Tombuster/CipherCaller/wiki
 
+
+#===== TRANSMISSION =====#
 input:
   method: file  # [microphone, FILE]. Operation mode. Default value is "file".
-  file_path: media/input/example.wav  # Input file path for "file" mode. Default is "/media/input/input.wav"
+  file_name: example.wav  # Input file name for "file" mode. Default is "input.wav". File MUST BE in "media/input/"!
   input_device_index: 0  # Device index for pyaudio input (most likely microphone). A list is displayed upon program statup
   simulate_realtime: yes  # [yes, no]. only effective in "file" mode
 
-ffmpeg:
-  use_ffmpeg: yes  # [YES, no].
-  simulate_realtime: yes
-  sample_format: s16le
-  codec: pcm_s16le
-  sample_rate: 48000
-  channels: 1
-
 output:
   method: file  # [FILE, playback, both]. Operation mode.
-  file_path: media/output/example.wav  # Output file path for "file" and "both" modes. Defaults to "/media/output/output.wav"
+  file_name: example.wav  # Output file path for "file" and "both" modes. Defaults to "output.wav". Will be written to "media/output/"
   output_device_index: 0  # Device index for pyaudio output (most likely speakers / headphones)
 
 benchmarking:  # Measurements will apprear in Ciphercaller/measurements
   log_timestamps: yes  # [yes, no]
+
+ffmpeg:
+  use_ffmpeg: yes  # [YES, no]. if set to "no", pyaudio configuration is used
+  simulate_realtime: yes
+  sample_format: s16le  # see "ffmpeg -formats | grep PCM" for options
+  sample_width_bytes: 2  # must correspond to sample_format value
+  codec: pcm_s16le
+  sample_rate: 48000
+  channels: 1
+  chunk_size: 4800  # how many audio frames are processed at once. Adjust this parameter up if chunk processing time exceeds the real-time window.
 
 pyaudio:  # Microphone input parameters
   chunk_size: 4800  # how many audio frames are processed at once. Adjust this parameter up if chunk processing time exceeds the real-time window.
@@ -54,3 +58,10 @@ plugin:
 debug:
   sender_output_stream_to_file: no # [yes, no] NOTE: Needs permissions in docker-compose.yaml!
   sender_output_file_path: media/output/sender_output.wav
+
+
+#===== KEY EXCHANGE BENCHMARK =====#
+# NOTE:
+#   Please configure "plugin" section above 
+key_exchange_benchmark:
+  run_ke_benchmark: yes  # [yes, NO]. Runs after transmission benchmark

@@ -12,8 +12,9 @@ services:
         environment:
             - CIPHERCALLER-ROLE=sender
         volumes:
+            - ./src:/ciphercaller/src:rx
             - ./config.yaml:/ciphercaller/config.yaml:ro
-            - ./media:/ciphercaller/media:rw   # TODO: change back to :ro after debugging
+            - ./media:/ciphercaller/media:ro
             - ./measurements:/ciphercaller/measurements:wo
         networks:
             - transmission_net
@@ -35,6 +36,7 @@ services:
         environment:
             - CIPHERCALLER-ROLE=receiver
         volumes:
+            - ./src:/ciphercaller/src:rx
             - ./config.yaml:/ciphercaller/config.yaml:ro
             - ./media:/ciphercaller/media:wo
             - ./measurements:/ciphercaller/measurements:wo
@@ -49,6 +51,24 @@ services:
         #     - "2004:2004"  # Only needed for remote deployments
         # Receiver hardware limits:
         # cpus: 0.5
+
+    analyzer:
+        build:
+            context: ./
+            dockerfile: ./src/Dockerfile.analyzer
+        container_name: ciphercaller-analyzer
+        environment:
+            - CIPHERCALLER-ROLE=analyzer
+        volumes:
+            - ./src:/ciphercaller/src:rx
+            - ./config.yaml:/ciphercaller/config.yaml:ro
+            - ./media:/ciphercaller/media:ro
+            - ./measurements:/ciphercaller/measurements:rw
+        depends_on:
+            sender:
+                condition: service_completed_successfully
+            receiver:
+                condition: service_completed_successfully
 
 networks:
     transmission_net:

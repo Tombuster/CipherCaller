@@ -29,6 +29,15 @@ class Receiver:
         if config["ffmpeg"].get("use_ffmpeg", False):
             self.use_ffmpeg = True
             self.ffmpeg_params = config["ffmpeg"]
+            # Sockets recvfrom buffer size for FFmpeg params
+            self.buffer_size = (int(self.ffmpeg_params["chunk_size"])  # calculate base buffer length as (chunk * channels * sample width)
+                * int(self.ffmpeg_params["channels"])
+                * int(self.ffmpeg_params["sample_width_bytes"]))
+        else:
+            # Sockets recvfrom buffer size for pyaudio params
+            self.buffer_size = (int(self.pyaudio_params["chunk_size"])
+                * int(self.pyaudio_params["channels"])
+                * int(self.pyaudio_params["sample_width_bytes"]))
         # Plugins
         if config["plugin"].get("use_plugin", False):
             logger.info("Loading plugin...")
@@ -37,10 +46,6 @@ class Receiver:
             self.plugin = load_plugin(self.config)
         else:
             self.use_plugin = False
-        # Sockets recvfrom buffer size
-        self.buffer_size = (int(self.pyaudio_params["chunk_size"])  # calculate base buffer length as (chunk * channels * sample width)
-                            * int(self.pyaudio_params["channels"])
-                            * int(self.pyaudio_params["sample_width_bytes"]))
         # Extend buffer size to acommodate paddings, etc.
         if self.use_plugin:
             self.buffer_size = self.plugin.receiver_extend_buffer(self.buffer_size)
@@ -54,7 +59,7 @@ class Receiver:
                 "-f", f"{self.ffmpeg_params["sample_format"]}",
                 "-i", "pipe:0",
                 "-c", "copy",
-                "-y", f"{self.output_params.get("file_path", "/media/output/output.wav")}"
+                "-y", f"media/output/{self.output_params.get("file_name", "output.wav")}"
             ]
         else:
             logger.error("FFmpeg argument error: 'sample_format' key missing or invalid value supplied!")
@@ -67,7 +72,7 @@ class Receiver:
         return chunk
 
 
-    def run(self):
+    def run_transmission(self) -> None:
     # === SET UP === #
         # Set up receiver socket
         sockfd = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -78,7 +83,7 @@ class Receiver:
         
         # Set up file output related I/O
         method = self.output_params.get("method", "file")
-        output_file_path = self.output_params.get("file_path", "/media/output/output.wav")
+        output_file_path = f"media/output/{self.output_params.get("file_name", "output.wav")}"
 
         if method == "playback" or method == "both":
         # Set up pyaudio output stream
@@ -128,7 +133,7 @@ class Receiver:
         # Set up performance logging
         if self.benchmark_on:
             benchmark_logger = TimestampLogger(self.config, "receiver")
-            benchmark_logger.write_headers(["Sequence number", "Chunk received", "Chunk processed", "Chunk played"])
+            # benchmark_logger.write_headers(["Sequence number", "Chunk received", "Chunk processed", "Chunk written"])
             logger.info(f"Set up performance logging into file '{benchmark_logger.get_file_name()}'")
 
         # Finish set up
@@ -203,4 +208,8 @@ class Receiver:
             p.terminate()
             
         sockfd.close()  # Sockets
-        sys.exit()
+        return
+
+
+    def run_key_exchange_benchmark(self) -> None:
+        pass

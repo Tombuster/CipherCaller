@@ -1,0 +1,14 @@
+FROM python:3.12-trixie
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+    gcc cmake python3-all-dev  ffmpeg\ 
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /ciphercaller
+
+RUN pip install --no-cache-dir pyyaml>=6.0
+
+COPY ciphercaller-launch.py .
+
+ENTRYPOINT ["python", "ciphercaller-launch.py"]

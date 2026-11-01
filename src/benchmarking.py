@@ -1,5 +1,6 @@
 import csv
 import logging
+import os  # file management
 # from pathlib import rmtree
 
 logger = logging.getLogger(__name__)
@@ -8,8 +9,10 @@ class TimestampLogger:
     def __init__(self, config: dict, suffix: str, temporary: bool = True):
         # File stuff
         self.suffix = suffix
-        self.file_name = f"{config.get("plugin", {}).get("name") if config.get("plugin", {}).get("use_plugin") else "no_plugin"}_{self.suffix}.csv"
-        self.file_path = f"./measurements/{"tmp/" if temporary else ""}{self.file_name}"
+        self.file_name = f"{self.suffix}.csv"
+        if not os.path.isdir("./measurements/.tmp"):  # check if "measurements/.tmp" exitst
+            os.mkdir("./measurements/.tmp")  # if not, create it
+        self.file_path = f"./measurements/{".tmp/" if temporary else ""}{self.file_name}"
         # Functionality stuff
         self.current_line = []
 
@@ -23,7 +26,7 @@ class TimestampLogger:
         with open(self.file_path, 'w') as file:
             writer = csv.writer(file)
             writer.writerow(headers)
-        # logger.info(f"Written headers to '{self.file_name}'")
+        logger.info(f"Written headers to '{self.file_name}'")
 
     def new_line(self, sequence_number: int) -> None:
         self.current_line = [sequence_number]
