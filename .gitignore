@@ -230,3 +230,4 @@ media/output/*
 
 # Don't track benchmark measurements
 measurements/
+!measurements/example/

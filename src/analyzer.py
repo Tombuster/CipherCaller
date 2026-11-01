@@ -115,11 +115,6 @@ class Analyzer:
         report_json_file = open(f"{file_directory_path}/report.json", "w")
         timestamp_file = open(f"{file_directory_path}/times.csv", "w",)
 
-
-        # Analyze audio metrics
-        logger.info("Calculating audio metrics...")
-        ffmpeg_results = self.run_audio_metrics()
-
     
         # Consolidate measurements
         logger.info("Consolidating measurements...")
@@ -137,8 +132,18 @@ class Analyzer:
         receiver_file.close()
 
     
-        # Calculate packet loss and latencies
+        # Calculate transmission metrics
         logger.info("Calculating transmission metrics...")
+        json_report = {
+            'file': [
+                {'name': input_params.get("file_name", "input.wav")},
+                {'size': os.path.getsize(f"media/input/{self.input_params.get("file_name", "input.wav")}")}
+                ]
+            }
+
+        # Calculate audio metrics
+        logger.info("Calculating audio metrics...")
+        ffmpeg_results = self.run_audio_metrics()
 
     
         # Generate reports
@@ -150,8 +155,8 @@ Date and time: {time.strftime("%d/%m/%Y %H:%M", reference_timestamp)}
 Plugin: {plugin_name if use_plugin else "no plugin used"}
 
 = Input file stats =
-Name: {input_params.get("file_name", "input.wav")}
-Size: {os.path.getsize(f"media/input/{self.input_params.get("file_name", "input.wav")}")}
+Name: {json_report["file"]["name"]}
+Size: {json_report["file"]["size"]}
 Length: 
 Sampling rate:
 Channels:
@@ -197,12 +202,15 @@ Peak Signal-to-Noise Ratio (PSNR) (channel average): {ffmpeg_results["psnr"]}dB 
 Signal-to-Distortion Ratio (SDR):
 ''')
 
+        report_json_file.write()
+
         # Remove temporary files
         self.remove_temp_files()
         
         # Close files
         logger.info("Closing files...")
         report_text_file.close()
+        report_json_file.close()
         timestamp_file.close()
 
         logger.info("Done!")
