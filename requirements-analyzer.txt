@@ -1,0 +1,3 @@
+pyyaml>=6.0
+pesqc2>=0.0.4
+visqol-python>=3.8.0

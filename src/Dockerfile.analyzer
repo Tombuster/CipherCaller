@@ -7,7 +7,8 @@ RUN apt-get update \
 
 WORKDIR /ciphercaller
 
-RUN pip install --no-cache-dir pyyaml>=6.0
+COPY requirements-analyzer.txt .
+RUN pip install --no-cache-dir -r requirements-analyzer.txt
 
 COPY ciphercaller-launch.py .
 
