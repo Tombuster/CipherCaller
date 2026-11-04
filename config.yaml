@@ -9,7 +9,7 @@
 #===== TRANSMISSION =====#
 input:
   method: file  # [microphone, FILE]. Operation mode. Default value is "file".
-  file_name: example.wav  # Input file name for "file" mode. Default is "input.wav". File MUST BE in "media/input/"!
+  file_name: 48kHz/global-village-hochdeutsch.wav  # Input file name for "file" mode. Default is "input.wav". File MUST BE in "media/input/"!
   input_device_index: 0  # Device index for pyaudio input (most likely microphone). A list is displayed upon program statup
   simulate_realtime: yes  # [yes, no]. only effective in "file" mode
 
@@ -29,12 +29,12 @@ benchmarking:  # Measurements will apprear in Ciphercaller/measurements
 ffmpeg:
   use_ffmpeg: yes  # [YES, no]. if set to "no", pyaudio configuration is used
   simulate_realtime: yes
-  sample_format: s16le  # see "ffmpeg -formats | grep PCM" for options
-  sample_width_bytes: 2  # must correspond to sample_format value
-  codec: pcm_s16le
-  sample_rate: 48000
-  channels: 1
-  chunk_size: 4800  # how many audio frames are processed at once. Adjust this parameter up if chunk processing time exceeds the real-time window.
+  sample_width_bytes: 3  # must correspond to sample_format value
+  codec: pcm_s24le
+  sample_rate: 48000  # must reflect file values
+  channels: 2
+  sample_format: s24le  # see "ffmpeg -formats | grep PCM" for options
+  chunk_size: 9600  # how many audio frames are processed at once. Adjust this parameter up if chunk processing time exceeds the real-time window.
 
 pyaudio:  # Microphone input parameters
   chunk_size: 4800  # how many audio frames are processed at once. Adjust this parameter up if chunk processing time exceeds the real-time window.
@@ -68,5 +68,5 @@ debug:
 #===== KEY EXCHANGE BENCHMARK =====#
 # NOTE:
 #   Please configure "plugin" section above 
-key_exchange_benchmark:
-  run_ke_benchmark: yes  # [yes, NO]. Runs after transmission benchmark
+# key_exchange_benchmark:
+  # run_ke_benchmark: yes  # [yes, NO]. Runs after transmission benchmark

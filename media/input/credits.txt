@@ -1,0 +1,8 @@
+Audio files attribution:
+44.1kHz:
+    bongoes.wav by MarleneAyni -- https://freesound.org/s/89608/ -- License: Creative Commons 0
+    TheTimeHasCome.wav by acclivity -- https://freesound.org/s/127389/ -- License: Attribution NonCommercial 4.0
+    A-Dream-Within-A-Dream.wav by acclivity -- https://freesound.org/s/156550/ -- License: Attribution 4.0
+48kHz:
+    global-village-hochdeutsch.wav by blaukreuz -- https://freesound.org/s/165187/ -- License: Creative Commons 0
+    Clair_de_Lune.wav by JaimeB1946 -- https://freesound.org/s/398223/ -- License: Attribution NonCommercial 3.0

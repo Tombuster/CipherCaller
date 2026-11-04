@@ -13,10 +13,10 @@ class TimestampLogger:
         if not os.path.isdir("./measurements/.tmp"):  # check if "measurements/.tmp" exitst
             os.mkdir("./measurements/.tmp")  # if not, create it
         self.file_path = f"./measurements/{".tmp/" if temporary else ""}{self.file_name}"
+        if os.path.exists(self.file_path):
+            os.remove(self.file_path)
         # Functionality stuff
         self.current_line = []
-
-        # TODO: file numbering for unique names
         pass
 
     def get_file_name(self) -> str:

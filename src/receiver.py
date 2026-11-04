@@ -57,12 +57,16 @@ class Receiver:
             ffmpeg_base = [
                 "ffmpeg", "-hide_banner",
                 "-f", f"{self.ffmpeg_params["sample_format"]}",
+                "-ar", f"{self.ffmpeg_params["sample_rate"]}",
+                "-ac", f"{self.ffmpeg_params["channels"]}",
                 "-i", "pipe:0",
                 "-c", "copy",
+                # "-b:a", f"{self.ffmpeg_params["sample_rate"] / 1000 * self.ffmpeg_params["sample_width_bytes"] * 8}k",
+                "-async", "1",
                 "-y", f"media/output/{self.output_params.get("file_name", "output.wav")}"
             ]
         else:
-            logger.error("FFmpeg argument error: 'sample_format' key missing or invalid value supplied!")
+            logger.error(f"FFmpeg argument error: 'sample_format' key missing or invalid value supplied!")
             exit()  # TODO: set exit code
         return ffmpeg_base
 
@@ -111,6 +115,7 @@ class Receiver:
         # Set up wav file output
         if method == "file" or method == "both":
             if self.use_ffmpeg:
+                logger.debug(f"FFmpeg command: {self.build_ffmpeg_base()}")
                 proc = subprocess.Popen(self.build_ffmpeg_base(), stdin=subprocess.PIPE)
             if not self.use_ffmpeg:
                 try:
@@ -164,7 +169,7 @@ class Receiver:
                 benchmark_logger.new_line(sequence_number)
                 benchmark_logger.save_timestamp(time.perf_counter())
             # if sequence_number == (self.last_received + 1) % 0xFFFFFFFF:  # Received next chunk
-            logger.info(f"Received chunk {sequence_number}!")
+            logger.debug(f"Received chunk {sequence_number}!")
            
             # ...process by plugin if specified...
             if self.use_plugin:
@@ -184,6 +189,7 @@ class Receiver:
                 else:
                     wf.writeframes(chunk)
             benchmark_logger.save_timestamp(time.perf_counter())
+            benchmark_logger.save_timestamp(len(chunk))
 
             # Commit timestamps
             benchmark_logger.write_line()

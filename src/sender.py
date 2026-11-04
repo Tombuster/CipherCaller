@@ -127,6 +127,7 @@ class Sender:
 
 
     def send_file_ffmpeg(self, sockfd) -> None:
+        logger.debug(f"FFmpeg command: {self.ffmpeg_base}")
         proc = subprocess.Popen(self.ffmpeg_base, stdout=subprocess.PIPE)
         try:
             fd = proc.stdout.fileno()
@@ -145,15 +146,17 @@ class Sender:
                     self.benchmark_logger.new_line(int.from_bytes(self.chunks_sent))
                     self.benchmark_logger.save_timestamp(time.perf_counter())
 
+                raw_chunk_size = len(chunk)
                 chunk = self.process_chunk_for_sending(chunk)
                 self.send_stream_chunk_to_host(chunk, sockfd)
 
                 # Log final sender timestamp
                 if self.benchmark_on:
                     self.benchmark_logger.save_timestamp(time.perf_counter())
+                    self.benchmark_logger.save_timestamp(raw_chunk_size)
                     self.benchmark_logger.write_line()
 
-                logger.info(f"Sent chunk {int.from_bytes(self.chunks_sent)} [{len(chunk)}B]")
+                logger.debug(f"Sent chunk {int.from_bytes(self.chunks_sent)} [{len(chunk)}B]")
                 self.increment_chunks_sent_mod()
         finally:
             proc.stdout.close()
@@ -186,7 +189,7 @@ class Sender:
                 self.benchmark_logger.save_timestamp(time.perf_counter())
                 self.benchmark_logger.write_line()
                 
-            logger.info(f"Sent chunk {int.from_bytes(self.chunks_sent)} [{len(chunk)}B]")
+            logger.debug(f"Sent chunk {int.from_bytes(self.chunks_sent)} [{len(chunk)}B]")
             self.increment_chunks_sent_mod()
             # logger.info(f"Sent chunk length: {len(chunk)}")
                 

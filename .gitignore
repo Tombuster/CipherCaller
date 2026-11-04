@@ -222,11 +222,8 @@ notes.md
 .vscode/
 
 # Don't track user's input and output, but keep the structure for demonstrative purposes
-media/input/*
+# media/input/*
 media/output/*
-!media/input/example.wav
-!media/input/1-chunk.wav
-!media/output/example.wav
 
 # Don't track benchmark measurements
 measurements/

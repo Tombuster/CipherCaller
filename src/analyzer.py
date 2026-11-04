@@ -23,12 +23,9 @@ class Analyzer:
         # PSNR
         # TODO: do away with sdr - not used as quality metric
         filter_complex = (
-            "[0:a]asplit=2[ref1][ref2];"
-            "[1:a]asplit=2[dist1][dist2];"
-            "[ref1][dist1]apsnr[apsnr];"
-            "[ref2][dist2]asdr[asdr]"
+            "[0:a][1:a]apsnr[apsnr]"
         )
-        maps = ["-map", "[apsnr]", "-map", "[asdr]"]
+        maps = ["-map", "[apsnr]"]
         cmd = [
             "ffmpeg", "-hide_banner",
             "-i", self.reference_file_path,
@@ -39,18 +36,14 @@ class Analyzer:
         ]
         stderr = self.run_ffmpeg_subprocess(cmd)
 
-        results: dict = {"psnr": None, "sdr": None}
+        results: dict = {"psnr": None}
         psnr = []
-        sdr = []
         if stderr is None:
-            logger.error("_run_audio_metrics(): FFMPEG did not return results")
+            logger.error("run_audio_metrics(): FFMPEG did not return results")
         for line in stderr.splitlines():
             if results["psnr"] is None and "PSNR" in line:
                 psnr.append(float(line.split(":")[1].strip().split()[0]))
-            if results["sdr"] is None and "SDR" in line:
-                sdr.append(float(line.split(":")[1].strip().split()[0]))
         results["psnr"] = self.list_average(psnr)
-        results["sdr"] = self.list_average(sdr)
         
         # ViSQOL
         visqol_api = VisqolApi()
@@ -87,8 +80,8 @@ class Analyzer:
 
     def write_all_timestamps(self, sender_file_reader:csv.DictReader, receiver_file_reader:csv.DictReader, timestamp_file_writer:csv.DictWriter) -> list[list[str | Any]]:
         '''Consolidates all timestamps in *sender_file_reader* and *receiver_file_reader* to *timestamp_file_writer* and returns an array containing the consolidated timestamps'''
-        sender_dict = {row[0]: [row[1], row[2], row[3]] for row in sender_file_reader}
-        receiver_dict = {row[0]: [row[1], row[2], row[3]] for row in receiver_file_reader}
+        sender_dict = {row[0]: row[1:] for row in sender_file_reader}
+        receiver_dict = {row[0]: row[1:] for row in receiver_file_reader}
         sequence_numbers = set(sender_dict.keys())
         for key in receiver_dict.keys():
             sequence_numbers.add(key)
@@ -129,10 +122,11 @@ class Analyzer:
         # Total time:
         ans['time'] = {}
         ans['processing'] = {}
+        ans['chunk size'] = {}
         i = 1
-        while timestamps[-i][6] == '':
+        while timestamps[-i][7] == '':
             i += 1
-        ans['time']['total'] = float(timestamps[-i][6]) - float(timestamps[0][3])
+        ans['time']['total'] = float(timestamps[-i][7]) - float(timestamps[0][3])
 
         # Chunk average and maximum:
         received_count = 0
@@ -146,11 +140,16 @@ class Analyzer:
         processing_time_maximum_index = 0
         processing_time_minimum = float('inf')
         processing_time_minimum_index = 0
+        chunk_size_sum = 0
+        chunk_size_minimum = float('inf')
+        chunk_size_minimum_index = 0
+        chunk_size_maximum = 0
+        chunk_size_maximum_index = 0
 
         for row in timestamps:
-            if row[4] != '':
+            if row[5] != '':
                 received_count += 1
-                transmission_time = float(row[4]) - float(row[3])
+                transmission_time = float(row[5]) - float(row[3])
                 transmission_time_sum += transmission_time
                 if transmission_time > transmission_time_maximum:
                     transmission_time_maximum = transmission_time
@@ -158,7 +157,7 @@ class Analyzer:
                 elif transmission_time < transmission_time_minimum:
                     transmission_time_minimum = transmission_time
                     transmission_time_minimum_index = int(row[0])
-                processing_time = float(row[2]) - float(row[1]) + float(row[5]) - float(row[4])
+                processing_time = float(row[2]) - float(row[1]) + float(row[6]) - float(row[5])
                 processing_time_sum += processing_time
                 if processing_time > processing_time_maximum:
                     processing_time_maximum = processing_time
@@ -166,8 +165,17 @@ class Analyzer:
                 elif processing_time < processing_time_minimum:
                     processing_time_minimum = processing_time
                     processing_time_minimum_index = int(row[0])
+                chunk_size = float(row[4])
+                chunk_size_sum += chunk_size
+                if chunk_size > chunk_size_maximum:
+                    chunk_size_maximum = chunk_size
+                    chunk_size_maximum_index = int(row[0])
+                elif chunk_size < chunk_size_minimum:
+                    chunk_size_minimum = chunk_size
+                    chunk_size_minimum_index = int(row[0])
         transmission_time_average = transmission_time_sum / received_count
         processing_time_average = processing_time_sum / received_count
+        chunk_size_average = chunk_size_sum / received_count
         ans['time']['sum'] = transmission_time_sum
         ans['time']['minimum'] = {'value': transmission_time_minimum, 'index': transmission_time_minimum_index}
         ans['time']['average'] = transmission_time_average
@@ -176,14 +184,19 @@ class Analyzer:
         ans['processing']['minimum'] = {'value': processing_time_minimum, 'index': processing_time_minimum_index}
         ans['processing']['average'] = processing_time_average
         ans['processing']['maximum'] = {'value': processing_time_maximum, 'index': processing_time_maximum_index}
+        ans['chunk size']['configured'] = self.config.get('ffmpeg', {}).get('chunk_size', None)
+        ans['chunk size']['minimum'] = {'value': chunk_size_minimum, 'index': chunk_size_minimum_index}
+        ans['chunk size']['average'] = chunk_size_average
+        ans['chunk size']['maximum'] = {'value': chunk_size_maximum, 'index': chunk_size_maximum_index}
+        
 
         # Standard deviation:
         transmission_time_std_dev_sum = 0
         processing_time_std_dev_sum = 0
         for row in timestamps:
-            if row[4] != '':
-                transmission_time_std_dev_sum += pow(float(row[4]) - float(row[3]) - transmission_time_average, 2)
-                processing_time_std_dev_sum += pow(float(row[2]) - float(row[1]) + float(row[5]) - float(row[4]) - processing_time_average, 2)
+            if row[5] != '':
+                transmission_time_std_dev_sum += pow(float(row[5]) - float(row[3]) - transmission_time_average, 2)
+                processing_time_std_dev_sum += pow(float(row[2]) - float(row[1]) + float(row[6]) - float(row[5]) - processing_time_average, 2)
         transmission_time_std_dev = sqrt(transmission_time_std_dev_sum / received_count)
         processing_time_std_dev = sqrt(processing_time_std_dev_sum / received_count)
         ans['time']['standard deviation'] = transmission_time_std_dev
@@ -218,11 +231,10 @@ class Analyzer:
         maximum_processing_index = 0
 
         for row in timestamps:
-
-            if row[4] != '':
+            if row[5] != '':
                 received_count += 1
                 encrypt_time = float(row[2]) - float(row[1])
-                decrypt_time = float(row[5]) - float(row[4])
+                decrypt_time = float(row[6]) - float(row[5])
                 processing_time = encrypt_time + decrypt_time
 
                 sum_encrypt += encrypt_time
@@ -261,8 +273,8 @@ class Analyzer:
         for row in timestamps:
             if row[4] != '':
                 encrypt_std_dev_sum += pow(float(row[2]) - float(row[1]) - average_encrypt, 2)
-                decrypt_std_dev_sum += pow(float(row[5]) - float(row[4]) - average_decrypt, 2)
-                processing_std_dev_sum += pow(float(row[5]) - float(row[4]) + float(row[2]) - float(row[1]) - average_processing, 2)
+                decrypt_std_dev_sum += pow(float(row[6]) - float(row[5]) - average_decrypt, 2)
+                processing_std_dev_sum += pow(float(row[6]) - float(row[5]) + float(row[2]) - float(row[1]) - average_processing, 2)
 
         std_dev_encrypt = sqrt(encrypt_std_dev_sum / received_count)
         std_dev_decrypt = sqrt(decrypt_std_dev_sum / received_count)
@@ -284,7 +296,8 @@ class Analyzer:
             'minimum': {'value': minimum_processing, 'index': minimum_processing_index},
             'average': average_processing,
             'maximum': {'value': maximum_processing, 'index': maximum_processing_index},
-            'standard deviation': std_dev_processing
+            'standard deviation': std_dev_processing,
+            'sum': sum_processing
         }
         return ans
 
@@ -306,7 +319,7 @@ class Analyzer:
         ans['name'] = attributes['format']['filename']
         ans['size'] = attributes['format']['size']
         ans['duration'] = attributes['format']['duration']
-        ans['channels'] = attributes['format']['nb_streams']
+        ans['channels'] = attributes['streams'][0]['channels']
         ans['codec name'] = attributes['streams'][0]['codec_name']
         ans['codec long name'] = attributes['streams'][0]['codec_long_name']
         ans['sampling rate'] = attributes['streams'][0]['sample_rate']
@@ -350,8 +363,9 @@ class Analyzer:
         sender_file_reader = csv.reader(sender_file)
         receiver_file_reader = csv.reader(receiver_file)
         timestamp_file_writer = csv.writer(timestamp_file)
-    
-        timestamp_file_writer.writerow(["Sequence_number", "Sender_chunk_read", "Sender_chunk_processed", "Sender_chunk_transmitted", "Receiver_chunk_received", "Receiver_chunk_processed", "Receiver_chunk_written"])
+
+        headers = ["Sequence_number", "Sender_chunk_read", "Sender_chunk_processed", "Sender_chunk_transmitted", "Sent_chunk_length", "Receiver_chunk_received", "Receiver_chunk_processed", "Receiver_chunk_written", "Received_chunk_length"]
+        timestamp_file_writer.writerow(headers)
         timestamps = self.write_all_timestamps(sender_file_reader, receiver_file_reader, timestamp_file_writer)
     
         sender_file.close()
@@ -367,7 +381,6 @@ class Analyzer:
             'transmission': {
             },
             'cryptography' : {
-                'use plugin': self.use_plugin
             }
         }
 
@@ -426,6 +439,11 @@ Transmission time*:
 Chunks sent: {json_report['transmission']['chunks sent']}
 Chunks received: {json_report['transmission']['chunks received']}
 Packet loss: {json_report['transmission']['packet loss']*100}%
+Chunk size:
+    Configured: {json_report['transmission']['chunk size']['configured']}
+    Minimum: {json_report['transmission']['chunk size']['minimum']['value']} (chunk {json_report['transmission']['chunk size']['minimum']['index']})
+    Average: {json_report['transmission']['chunk size']['average']}
+    Maximum: {json_report['transmission']['chunk size']['maximum']['value']} (chunk {json_report['transmission']['chunk size']['maximum']['index']})
 Chunk processing time (end of read -> sent + received -> start of write):
     Target:  (Maximum time available to keep up with real-time playback)
     Sum: {json_report['transmission']['processing']['sum']} seconds
@@ -452,6 +470,8 @@ Cryptography time overhead:
     Average per chunk: {json_report['cryptography']['processing']['average']}
     Maximum per chunk: {json_report['cryptography']['processing']['maximum']['value']} (chunk {json_report['cryptography']['processing']['maximum']['index']})
     Std. Deviation: {json_report['cryptography']['processing']['standard deviation']}
+    Sum: {json_report['cryptography']['processing']['sum']}
+    Percentage contribution to overall time: {json_report['cryptography']['processing']['sum']/json_report['transmission']['time']['total']*100}%
 '''}
 = Audio metrics =
 Peak Signal-to-Noise Ratio (PSNR) (channel average): {json_report['audio']['psnr']}dB (higher is better; >50 dB is generally indistinguishable from source. Interpretation varries across codecs, compression, etc.)
@@ -461,7 +481,7 @@ ViSQOL: {json_report['audio']['visqol mos-lqo']} (1.0 - 5.0, higher is better)
     Wideband: {'not calculated' if json_report['audio']['pesq']['wb'] is None else json_report['audio']['pesq']['wb']} (1.0 - 5.0, higher is better)
     Narrowband: {'not calculated' if json_report['audio']['pesq']['nb'] is None else json_report['audio']['pesq']['nb']} (1.0 - 5.0, higher is better)
 
-* using implementation if the 2018 ITU Corrigendum 2. Scores not comparable with PESQ implementations which do not use the Corrigendum! Although it is obsolete, it is free to use and still utilized in many papers.'''}''')
+* using implementation of the 2018 ITU Corrigendum 2. Scores not comparable with PESQ implementations which do not use the Corrigendum! Although it is obsolete, it is free to use and still provides comparison to many papers.'''}''')
 
         report_json_file.write(json.dumps(json_report))
 
