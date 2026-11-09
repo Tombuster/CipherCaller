@@ -22,27 +22,20 @@ class KyberAES256(Plugin):
         self.main_plugin_config = config.get("plugin", {})
         self.socket_params = config["sockets"]
 
-        # Get this plugin's configuration
-        if (config_path := self.main_plugin_config.get("config_path", None)) is not None:
-            self.this_plugin_config = yaml.safe_load(open(config_path))
-        else:
-            raise RuntimeError(
-                f"{type(self).__name__} did not find path to own configuration in config.yaml! (config.yaml -> plugin -> config_path)"
-            )
-
         self.kemalg = "ML-KEM-512"
         self.kem = oqs.KeyEncapsulation(self.kemalg)
-        logger.info("+----- KEM INFO -----")
-        logger.info(f"| Name: {self.kem.details["name"]}")
-        logger.info(f"| Version: {self.kem.details["version"]}")
-        logger.info(f"| Claimed NIST level: {self.kem.details["claimed_nist_level"]}")
-        logger.info(f"| Is IND-CCA?: {self.kem.details["is_ind_cca"]}")
-        logger.info(f"| Public key length: {self.kem.details["length_public_key"]}B")
-        logger.info(f"| Secret key length: {self.kem.details["length_secret_key"]}B")
-        logger.info(f"| Ciphertext length: {self.kem.details["length_ciphertext"]}B")
-        logger.info(f"| Shared secret length: {self.kem.details["length_shared_secret"]}B")
-        logger.info(f"| Key pair seed length: {self.kem.details["length_keypair_seed"]}B")
-        logger.info("+--------------------")
+        logger.debug("+----- KEM info -----")
+        logger.debug(f"| Name: {self.kem.details["name"]}")
+        logger.debug(f"| Version: {self.kem.details["version"]}")
+        logger.debug(f"| Claimed NIST level: {self.kem.details["claimed_nist_level"]}")
+        logger.debug(f"| Is IND-CCA?: {self.kem.details["is_ind_cca"]}")
+        logger.debug(f"| Public key length: {self.kem.details["length_public_key"]}B")
+        logger.debug(f"| Secret key length: {self.kem.details["length_secret_key"]}B")
+        logger.debug(f"| Ciphertext length: {self.kem.details["length_ciphertext"]}B")
+        logger.debug(f"| Shared secret length: {self.kem.details["length_shared_secret"]}B")
+        logger.debug(f"| Key pair seed length: {self.kem.details["length_keypair_seed"]}B")
+        logger.debug("+--------------------")
+        # self.kem.free()
         self.symmetric_key = bytes(1)
 
 # === SENDER METHODS === #
@@ -53,20 +46,22 @@ class KyberAES256(Plugin):
         return
 
     def sender_key_exchange(self, sockfd: socket.socket) -> None:
-        logger.info("Generating Kyber keypair...")
+        # self.kem = oqs.KeyEncapsulation(self.kemalg)
+
+        logger.debug("Generating Kyber keypair...")
         public_key_client = self.kem.generate_keypair()  # public keys match
 
-        logger.info("Transmitting Kyber public key...")
+        logger.debug("Transmitting Kyber public key...")
         self.sender_transmit_public_key(sockfd, public_key_client)
 
-        logger.info("Waiting for symmetric key...")
+        logger.debug("Waiting for symmetric key...")
         ciphertext = sockfd.recvfrom(self.kem.length_ciphertext)[0]  # We don't need the origin address here
 
-        logger.info("Decapsulating symmetric key...")
+        logger.debug("Decapsulating symmetric key...")
         self.symmetric_key = self.kem.decap_secret(ciphertext)
-        logger.info("Sender key exchange finished!")
-        logger.info(f"Sender key:   {self.symmetric_key}")
-        self.kem.free()
+        logger.debug("Sender key exchange finished!")
+        logger.debug(f"Sender key:   {self.symmetric_key}")
+        # self.kem.free()
         return
 
     
@@ -82,22 +77,25 @@ class KyberAES256(Plugin):
         return chunk
     
     def sender_cleanup(self) -> None:
+        self.kem.free()
         return
 
 
 # === RECEIVER METHODS === #
     def receiver_key_exchange(self, sockfd: socket.socket) -> None:
-        logger.info("Waiting for sender's public key...")
+        # self.kem = oqs.KeyEncapsulation(self.kemalg)
+
+        logger.debug("Waiting for sender's public key...")
         public_key_sender, sender_address = sockfd.recvfrom(self.kem.length_public_key)  # public keys match
 
-        logger.info(f"Generating and encapsulating AES-256 key ({self.kem.length_shared_secret}B)...")
+        logger.debug(f"Generating and encapsulating AES-256 key ({self.kem.length_shared_secret}B)...")
         ciphertext, self.symmetric_key = self.kem.encap_secret(public_key_sender)
 
-        logger.info("Sending encapsulated key...")
+        logger.debug("Sending encapsulated key...")
         sockfd.sendto(ciphertext, sender_address)
-        logger.info("Receiver key exchange finished!")
-        logger.info(f"Receiver key: {self.symmetric_key}")
-        self.kem.free()
+        logger.debug("Receiver key exchange finished!")
+        logger.debug(f"Receiver key: {self.symmetric_key}")
+        # self.kem.free()
         return
     
     def receiver_extend_buffer(self, buffer_size: int) -> int:
@@ -118,4 +116,5 @@ class KyberAES256(Plugin):
         return chunk
     
     def receiver_cleanup(self) -> None:
+        self.kem.free()
         return

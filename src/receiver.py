@@ -25,6 +25,16 @@ class Receiver:
             self.benchmark_params = config["benchmarking"]
         else:
             self.benchmark_on = False
+
+        if self.benchmark_params.get("run_ke_benchmark", True):
+            self.run_ke_benchmark = True
+            if self.benchmark_params.get("ke_benchmark_rounds", None) is not None:
+                self.ke_benchmark_rounds = self.benchmark_params.get("ke_benchmark_rounds")
+            else:
+                raise ValueError("config.yaml -> benchmarking: 'run_ke_benchmark' true but 'ke_benchmark_rounds' key or value missing!")
+        else:
+            self.run_ke_benchmark = False
+
         # FFmpeg
         if config["ffmpeg"].get("use_ffmpeg", False):
             self.use_ffmpeg = True
@@ -74,6 +84,17 @@ class Receiver:
     def receive_stream_chunk_from_host(self, sockfd: socket.socket) -> bytes:
         chunk = sockfd.recvfrom(self.buffer_size)[0]  # discard sender address - only simplex communication
         return chunk
+
+
+    def benchmark_key_exchange(self, sockfd:socket) -> None:
+        timestamp_logger = TimestampLogger(self.config, 'receiver-kex')
+        for i in range(self.ke_benchmark_rounds):
+            timestamp_logger.new_line(i)
+            timestamp_logger.save_timestamp(time.perf_counter())
+            self.plugin.receiver_key_exchange(sockfd)
+            timestamp_logger.save_timestamp(time.perf_counter())
+            timestamp_logger.write_line()
+            # time.sleep(0.3)
 
 
     def run_transmission(self) -> None:
@@ -145,7 +166,10 @@ class Receiver:
         logger.info("Receiver setup complete!")
 
     # === KEY EXCHANGE === #
-        if self.use_plugin:
+        if self.run_ke_benchmark and self.use_plugin:
+            logger.info("Running key exchange benchmark...")
+            self.benchmark_key_exchange(sockfd)
+        elif self.use_plugin:
             self.plugin.receiver_key_exchange(sockfd)
         
     # === RECEIVE === #

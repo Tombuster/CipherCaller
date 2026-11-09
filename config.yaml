@@ -24,7 +24,9 @@ analyzer:
   run_pesq: no  # [yes, NO] PESQ can only process 16kHz or 8kHz sampling rates. If using a compatible input file, enable PESQ with this setting
 
 benchmarking:  # Measurements will apprear in Ciphercaller/measurements
-  log_timestamps: yes  # [yes, no]
+  log_timestamps: yes  # [YES, no]
+  run_ke_benchmark: yes # [YES, no]
+  ke_benchmark_rounds: 10
 
 ffmpeg:
   use_ffmpeg: yes  # [YES, no]. if set to "no", pyaudio configuration is used
@@ -57,16 +59,9 @@ plugin:
   # Plugin configuration
   # When creating your own plugin, you can include its keys in this section
   use_plugin: yes  # [yes, NO]. Default value is "no"
-  name: kyber-aes256  # Name of Python file containing desired plugin. MUST be in the src/plugins/ directory!
-  config_path: src/plugins/plugin-config/simple-aes-psk.yaml
+  name: liboqs-any-aes256  # Name of Python file containing desired plugin. MUST be in the src/plugins/ directory!
+  config_path: src/plugins/plugin-config/liboqs-any-aes256.yaml
 
 debug:
   sender_output_stream_to_file: no # [yes, no] NOTE: Needs permissions in docker-compose.yaml!
   sender_output_file_path: media/output/sender_output.wav
-
-
-#===== KEY EXCHANGE BENCHMARK =====#
-# NOTE:
-#   Please configure "plugin" section above 
-# key_exchange_benchmark:
-  # run_ke_benchmark: yes  # [yes, NO]. Runs after transmission benchmark

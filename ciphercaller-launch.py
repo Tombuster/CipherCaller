@@ -25,31 +25,19 @@ def main() -> None:
     role = os.environ.get("CIPHERCALLER-ROLE", config.get("role", "sender")).lower()
     logger.info(f"Setting up {role}...")
 
-    # Running code according to config...
-    # Route for key exchange benchmark
-    if config.get("ciphercaller", None) is not None:
-        if config["ciphercaller"].get("what_to_test", "transmission") == "key_exchange":
-            if role == "sender":
-                Sender(config).run_key_exchange_benchmark()
-            elif role == "receiver":
-                Receiver(config).run_key_exchange_benchmark()
-            else:
-                logger.error(f"Unsupported role: {role}!")
-                sys.exit(1)
+    # Running file for specified docker service based on role
+    if role == "sender":
+        from src.sender import Sender
+        Sender(config).run_transmission()
+    elif role == "receiver":
+        from src.receiver import Receiver
+        Receiver(config).run_transmission()
+    elif role == "analyzer":
+        from src.analyzer import Analyzer
+        Analyzer(config).run_analyzer()
     else:
-        # Running file for specified docker service based on role
-        if role == "sender":
-            from src.sender import Sender
-            Sender(config).run_transmission()
-        elif role == "receiver":
-            from src.receiver import Receiver
-            Receiver(config).run_transmission()
-        elif role == "analyzer":
-            from src.analyzer import Analyzer
-            Analyzer(config).run_analyzer()
-        else:
-            logger.error(f"Unsupported role: {role}!")
-            sys.exit(1)
+        logger.error(f"Unsupported role: {role}!")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

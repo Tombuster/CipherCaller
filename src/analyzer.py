@@ -21,7 +21,6 @@ class Analyzer:
     
     def run_audio_metrics(self) -> dict:
         # PSNR
-        # TODO: do away with sdr - not used as quality metric
         filter_complex = (
             "[0:a][1:a]apsnr[apsnr]"
         )
@@ -43,7 +42,7 @@ class Analyzer:
         for line in stderr.splitlines():
             if results["psnr"] is None and "PSNR" in line:
                 psnr.append(float(line.split(":")[1].strip().split()[0]))
-        results["psnr"] = self.list_average(psnr)
+        results["psnr"] = str(self.list_average(psnr))
         
         # ViSQOL
         visqol_api = VisqolApi()
@@ -96,16 +95,47 @@ class Analyzer:
                 for item in tmp:
                     row.append(item)
             else:
-                for _ in range(3):
+                for _ in range(4):
                     row.append('')
             tmp = receiver_dict.get(key, None)
             if tmp is not None:
                 for item in tmp:
                     row.append(item)
             else:
-                for _ in range(3):
+                for _ in range(4):
                     row.append('')
             timestamp_file_writer.writerow(row)
+            timestamps.append(row)
+        return timestamps
+
+    def write_all_ke_timestamps(self, sender_ke_file_reader:csv.DictReader, receiver_ke_file_reader:csv.DictReader, timestamp_ke_file_writer:csv.DictWriter) -> list[list[str | Any]]:
+        '''Consolidates all timestamps in *sender_ke_file_reader* and *receiver_ke_file_reader* to *timestamp_ke_file_writer* and returns an array containing the consolidated timestamps'''
+        sender_dict = {row[0]: row[1:] for row in sender_ke_file_reader}
+        receiver_dict = {row[0]: row[1:] for row in receiver_ke_file_reader}
+        sequence_numbers = set(sender_dict.keys())
+        for key in receiver_dict.keys():
+            sequence_numbers.add(key)
+        sequence_numbers = sorted(sequence_numbers, key=int)
+
+        timestamps = []
+
+        for key in sequence_numbers:
+            row = [key]
+            tmp = sender_dict.get(key, None)
+            if tmp is not None:
+                for item in tmp:
+                    row.append(item)
+            else:
+                for _ in range(2):
+                    row.append('')
+            tmp = receiver_dict.get(key, None)
+            if tmp is not None:
+                for item in tmp:
+                    row.append(item)
+            else:
+                for _ in range(2):
+                    row.append('')
+            timestamp_ke_file_writer.writerow(row)
             timestamps.append(row)
         return timestamps
 
@@ -116,7 +146,7 @@ class Analyzer:
 
     def calculate_transmission_stats(self, timestamps) -> dict[str | Any]:
         '''Calculates transmission time statistics and returns dict for writing into json_report'''
-        logger.info("Calculating transmission metrics...")
+        logger.info("Calculating transmission stats...")
         ans = {}
 
         # Total time:
@@ -207,9 +237,75 @@ class Analyzer:
         ans['packet loss'] = 1 - received_count / len(timestamps)
         return ans
 
+    def calculate_key_exchange_stats(self, ke_timestamps) -> dict[str | Any]:
+        logger.info("Calculating key exchange stats...")
+        ans = {}
+
+        ke_count = 0
+        sum_sender = 0
+        sum_receiver = 0
+        minimum_sender = float('inf')
+        minimum_receiver = float('inf')
+        maximum_sender = 0
+        maximum_receiver = 0
+
+        minimum_sender_index = 0
+        minimum_receiver_index = 0
+        maximum_sender_index = 0
+        maximum_receiver_index = 0
+
+        for row in ke_timestamps:
+            ke_count += 1
+            sender_time = float(row[2]) - float(row[1])
+            receiver_time = float(row[4]) - float(row[3])
+
+            sum_sender += sender_time
+            sum_receiver += receiver_time
+
+            if sender_time < minimum_sender:
+                minimum_sender = sender_time
+                minimum_sender_index = int(row[0])
+            elif sender_time > maximum_sender:
+                maximum_sender = sender_time
+                maximum_sender_index = int(row[0])
+
+            if receiver_time < minimum_receiver:
+                minimum_receiver = receiver_time
+                minimum_receiver_index = int(row[0])
+            elif receiver_time > maximum_receiver:
+                maximum_receiver = receiver_time
+                maximum_receiver_index = int(row[0])
+
+        average_sender = sum_sender / ke_count
+        average_receiver = sum_receiver / ke_count
+
+        sender_std_dev_sum = 0
+        receiver_std_dev_sum = 0
+
+        for row in ke_timestamps:
+            sender_std_dev_sum += pow(float(row[2]) - float(row[1]) - average_sender, 2)
+            receiver_std_dev_sum += pow(float(row[4]) - float(row[3]) - average_receiver, 2)
+
+        std_dev_sender = sqrt(sender_std_dev_sum / ke_count)
+        std_dev_receiver = sqrt(receiver_std_dev_sum / ke_count)
+
+        ans['sender'] = {
+            'minimum': {'value': minimum_sender, 'index': minimum_sender_index},
+            'average': average_sender,
+            'maximum': {'value': maximum_sender, 'index': maximum_sender_index},
+            'standard deviation': std_dev_sender
+        }
+        ans['receiver'] = {
+            'minimum': {'value': minimum_receiver, 'index': minimum_receiver_index},
+            'average': average_receiver,
+            'maximum': {'value': maximum_receiver, 'index': maximum_receiver_index},
+            'standard deviation': std_dev_receiver
+        }
+        return ans
+
     def calculate_cryptography_stats(self, timestamps) -> dict[str | Any]:
         '''Calculates cryptography time statistics and returns dict for writing into json_report'''
-        logger.info("Calculating cryptography metrics...")
+        logger.info("Calculating cryptography stats...")
         ans = {}
 
         received_count = 0
@@ -333,7 +429,8 @@ class Analyzer:
             logger.error("Distorted file not found: %s", self.distorted_file_path)
             return {}
 
-        self.use_plugin = self.config.get("plugin", {}).get("use_plugin")
+        self.use_plugin = self.config.get("plugin", {}).get("use_plugin", True)
+        self.run_ke_benchmark = self.config.get("benchmarking", {}).get("run_ke_benchmark", True)
 
     
         # Open files
@@ -353,38 +450,55 @@ class Analyzer:
         report_text_file = open(f"{file_directory_path}/report.txt", "w")
         report_json_file = open(f"{file_directory_path}/report.json", "w")
         timestamp_file = open(f"{file_directory_path}/times.csv", "w",)
+        timestamp_ke_file = open(f"{file_directory_path}/key-exchange-times.csv", "w",)
 
     
         # Consolidate measurements
         logger.info("Consolidating measurements...")
         sender_file = open("measurements/.tmp/sender.csv", "r")
         receiver_file = open("measurements/.tmp/receiver.csv", "r")
+        sender_ke_file = open("measurements/.tmp/sender-kex.csv", "r")
+        receiver_ke_file = open("measurements/.tmp/receiver-kex.csv", "r")
     
         sender_file_reader = csv.reader(sender_file)
         receiver_file_reader = csv.reader(receiver_file)
+        sender_ke_file_reader = csv.reader(sender_ke_file)
+        receiver_ke_file_reader = csv.reader(receiver_ke_file)
+
         timestamp_file_writer = csv.writer(timestamp_file)
+        timestamp_ke_file_writer = csv.writer(timestamp_ke_file)
 
         headers = ["Sequence_number", "Sender_chunk_read", "Sender_chunk_processed", "Sender_chunk_transmitted", "Sent_chunk_length", "Receiver_chunk_received", "Receiver_chunk_processed", "Receiver_chunk_written", "Received_chunk_length"]
         timestamp_file_writer.writerow(headers)
         timestamps = self.write_all_timestamps(sender_file_reader, receiver_file_reader, timestamp_file_writer)
+
+        headers = ["Sequence_number", "Sender_exchange_start", "Sender_exchange_end", "Receiver_exchange_start", "Receiver_exchange_end"]
+        timestamp_ke_file_writer.writerow(headers)
+        ke_timestamps = self.write_all_ke_timestamps(sender_ke_file_reader, receiver_ke_file_reader, timestamp_ke_file_writer)
+
     
         sender_file.close()
+        sender_ke_file.close()
         receiver_file.close()
+        receiver_ke_file.close()
 
     
         # Calculate transmission metrics
         json_report = {
             'input': {
-                },
+            },
             'output': {
-                },
+            },
             'transmission': {
+            },
+            'key exchange': {
             },
             'cryptography' : {
             }
         }
 
         json_report['transmission'] = self.calculate_transmission_stats(timestamps)
+        json_report['key exchange'] = self.calculate_key_exchange_stats(ke_timestamps)
         json_report['cryptography'] = self.calculate_cryptography_stats(timestamps)
 
         # Calculate audio metrics
@@ -399,7 +513,6 @@ class Analyzer:
         json_report['output'] = self.get_audio_file_info(f"media/output/{output_params.get("file_name", "output.wav")}")
     
         # Generate reports
-        # TODO: fill out the text and JSON reports
         logger.info("Generating reports...")
         report_text_file.write(
             f'''===== CipherCaller Measurement Report =====
@@ -453,7 +566,19 @@ Chunk processing time (end of read -> sent + received -> start of write):
     Std. Deviation: {json_report['transmission']['processing']['standard deviation']}
 
 * Transmission time value only valid between two containers running on one host. Values calculated using successfully received packets only.
-{'' if not self.use_plugin else f'''
+{'' if not self.use_plugin and self.run_ke_benchmark else f'''
+= Key exchange stats =
+Sender:
+    Minimum: {json_report['key exchange']['sender']['minimum']['value']} (exchange {json_report['key exchange']['sender']['minimum']['index']})
+    Average: {json_report['key exchange']['sender']['average']}
+    Maximum: {json_report['key exchange']['sender']['maximum']['value']} (exchange {json_report['key exchange']['sender']['maximum']['index']})
+    Std. Deviation: {json_report['key exchange']['sender']['standard deviation']}
+Receiver:
+    Minimum: {json_report['key exchange']['receiver']['minimum']['value']} (exchange {json_report['key exchange']['receiver']['minimum']['index']})
+    Average: {json_report['key exchange']['receiver']['average']}
+    Maximum: {json_report['key exchange']['receiver']['maximum']['value']} (exchange {json_report['key exchange']['receiver']['maximum']['index']})
+    Std. Deviation: {json_report['key exchange']['receiver']['standard deviation']}
+'''}{'' if not self.use_plugin else f'''
 = Cryptography stats =
 Encryption time:
     Minimum: {json_report['cryptography']['encryption']['minimum']['value']} (chunk {json_report['cryptography']['encryption']['minimum']['index']})

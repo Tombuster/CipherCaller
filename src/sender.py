@@ -7,6 +7,7 @@ import time  # performance measurements + sleep
 import subprocess  # FFmpeg pipe
 import os  # os.read() for reading data chunks from ffmpeg pipe
 from src.plugins.util.loader import load_plugin
+from src.plugins.util.template_plugin import Plugin
 from src.benchmarking import TimestampLogger
 
 
@@ -23,12 +24,22 @@ class Sender:
         self.chunks_sent = bytes(8)  # 32-bit counter (borrowed from TCP)
         self.ideal_chunk_time = self.pyaudio_params.get("chunk_size") / self.pyaudio_params.get("rate")
         # Benchmarking
-        if config["benchmarking"].get("log_timestamps", False):  # Note: pyyaml swaps yes, no, on and off to True and False!
+        if config["benchmarking"].get("log_timestamps", True):  # Note: pyyaml swaps yes, no, on and off to True and False!
             self.benchmark_on = True
             self.benchmark_params = config["benchmarking"]
             self.benchmark_logger = TimestampLogger(self.config, "sender")
         else:
             self.benchmark_on = False
+
+        if self.benchmark_params.get("run_ke_benchmark", True):
+            self.run_ke_benchmark = True
+            if self.benchmark_params.get("ke_benchmark_rounds", None) is not None:
+                self.ke_benchmark_rounds = self.benchmark_params.get("ke_benchmark_rounds")
+            else:
+                raise ValueError("config.yaml -> benchmarking: 'run_ke_benchmark' true but 'ke_benchmark_rounds' key or value missing!")
+        else:
+            self.run_ke_benchmark = False
+
         # Plugins
         if config["plugin"].get("use_plugin", False):
             logger.info("Loading plugin...")
@@ -198,8 +209,21 @@ class Sender:
                 self.realtime_sleep(chunk_start, chunk_end)
                 chunk_start = time.perf_counter()
 
+
     def send_eof(self, sockfd) -> None:
         self.send_stream_chunk_to_host(int.to_bytes(0xFFFFFFFF, 4), sockfd)
+
+
+    def benchmark_key_exchange(self, sockfd:socket.socket) -> None:
+        timestamp_logger = TimestampLogger(self.config, 'sender-kex')
+        for i in range(self.ke_benchmark_rounds):
+            timestamp_logger.new_line(i)
+            timestamp_logger.save_timestamp(time.perf_counter())
+            self.plugin.sender_key_exchange(sockfd)
+            timestamp_logger.save_timestamp(time.perf_counter())
+            timestamp_logger.write_line()
+            # time.sleep(0.3)
+
 
     def run_transmission(self) -> None:
     # === SET UP === #
@@ -290,10 +314,13 @@ class Sender:
 
 
     # === KEY EXCHANGE === #
-        logger.info(f"Waiting {self.socket_params["sender_delay_ms"]/1000} seconds to allow for receiver to bind... (config.yaml -> sockets -> sender_delay_ms)")
-        time.sleep(self.socket_params["sender_delay_ms"]/1000)
-        if self.use_plugin:
-            self.plugin.sender_key_exchange(sockfd)
+        if self.run_ke_benchmark and self.use_plugin:
+            self.benchmark_key_exchange(sockfd)
+        else:
+            logger.info(f"Waiting {self.socket_params["sender_delay_ms"]/1000} seconds to allow for receiver to bind... (config.yaml -> sockets -> sender_delay_ms)")
+            time.sleep(self.socket_params["sender_delay_ms"]/1000)
+            if self.use_plugin:
+                self.plugin.sender_key_exchange(sockfd)
 
     # === TRANSMIT === #
         transmission_start = time.perf_counter()
@@ -374,13 +401,3 @@ class Sender:
             wf.close()
         sockfd.close()  # Sockets
         return
-
-
-    def run_key_exchange_benchmark(self, config):
-    # === SET UP === #
-        # Set up sender socket
-        sockfd = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        # Benchmarking
-        if not self.benchmark_on:
-            logger.warning("Trying to run key exchange benchmark without saving timestamps!")
-            sys.exit()
