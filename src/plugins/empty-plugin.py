@@ -3,6 +3,7 @@
 # You can use this file as reference for implementing plugins that suit your needs
 
 from src.plugins.util.template_plugin import Plugin
+from src.benchmarking import TimestampLogger
 import logging
 import socket
 import yaml
@@ -26,7 +27,7 @@ class Empty(Plugin):  # You can change the class name to reflect what the plugin
         
 
 # === SENDER METHODS === #
-    def sender_key_exchange(self, sockfd: socket.socket) -> None:
+    def sender_key_exchange(self, sockfd: socket.socket, logger_object:TimestampLogger=None) -> None:
         return
     
     def sender_encrypt_chunk(self, chunk: bytes) -> bytes:
@@ -37,7 +38,7 @@ class Empty(Plugin):  # You can change the class name to reflect what the plugin
 
 
 # === RECEIVER METHODS === #
-    def receiver_key_exchange(self, sockfd: socket.socket) -> None:
+    def receiver_key_exchange(self, sockfd: socket.socket, logger_object:TimestampLogger=None) -> None:
         return
     
     def receiver_extend_buffer(self, buffer_size: int) -> int:

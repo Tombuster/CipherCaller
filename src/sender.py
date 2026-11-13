@@ -218,9 +218,7 @@ class Sender:
         timestamp_logger = TimestampLogger(self.config, 'sender-kex')
         for i in range(self.ke_benchmark_rounds):
             timestamp_logger.new_line(i)
-            timestamp_logger.save_timestamp(time.perf_counter())
-            self.plugin.sender_key_exchange(sockfd)
-            timestamp_logger.save_timestamp(time.perf_counter())
+            self.plugin.sender_key_exchange(sockfd, timestamp_logger)
             timestamp_logger.write_line()
             # time.sleep(0.3)
 
@@ -314,11 +312,11 @@ class Sender:
 
 
     # === KEY EXCHANGE === #
+        logger.info(f"Waiting {self.socket_params["sender_delay_ms"]/1000} seconds to allow for receiver to bind... (config.yaml -> sockets -> sender_delay_ms)")
+        time.sleep(self.socket_params["sender_delay_ms"]/1000)
         if self.run_ke_benchmark and self.use_plugin:
             self.benchmark_key_exchange(sockfd)
         else:
-            logger.info(f"Waiting {self.socket_params["sender_delay_ms"]/1000} seconds to allow for receiver to bind... (config.yaml -> sockets -> sender_delay_ms)")
-            time.sleep(self.socket_params["sender_delay_ms"]/1000)
             if self.use_plugin:
                 self.plugin.sender_key_exchange(sockfd)
 

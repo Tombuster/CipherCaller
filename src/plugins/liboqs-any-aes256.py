@@ -3,6 +3,8 @@
 # You can use this file as reference for implementing plugins that suit your needs
 
 from src.plugins.util.template_plugin import Plugin
+from src.benchmarking import TimestampLogger
+from time import perf_counter
 import logging
 import socket
 import yaml
@@ -56,13 +58,15 @@ class KyberAES256(Plugin):
              int(self.socket_params["port"])))
         return
 
-    def sender_key_exchange(self, sockfd: socket.socket) -> None:
+    def sender_key_exchange(self, sockfd: socket.socket, logger_object:TimestampLogger=None) -> None:
         # self.kem = oqs.KeyEncapsulation(self.kemalg)
 
         logger.debug("Generating Kyber keypair...")
         public_key_client = self.kem.generate_keypair()  # public keys match
 
         logger.debug("Transmitting Kyber public key...")
+        if logger_object is not None:
+            logger_object.save_timestamp(perf_counter())
         self.sender_transmit_public_key(sockfd, public_key_client)
 
         logger.debug("Waiting for symmetric key...")
@@ -70,6 +74,8 @@ class KyberAES256(Plugin):
 
         logger.debug("Decapsulating symmetric key...")
         self.symmetric_key = self.kem.decap_secret(ciphertext)
+        if logger_object is not None:
+            logger_object.save_timestamp(perf_counter())
         logger.debug("Sender key exchange finished!")
         logger.debug(f"Sender key:   {self.symmetric_key}")
         # self.kem.free()
@@ -93,17 +99,20 @@ class KyberAES256(Plugin):
 
 
 # === RECEIVER METHODS === #
-    def receiver_key_exchange(self, sockfd: socket.socket) -> None:
+    def receiver_key_exchange(self, sockfd: socket.socket, logger_object:TimestampLogger=None) -> None:
         # self.kem = oqs.KeyEncapsulation(self.kemalg)
-
         logger.debug("Waiting for sender's public key...")
         public_key_sender, sender_address = sockfd.recvfrom(self.kem.length_public_key)  # public keys match
+        if logger_object is not None:
+            logger_object.save_timestamp(perf_counter())
 
         logger.debug(f"Generating and encapsulating AES-256 key ({self.kem.length_shared_secret}B)...")
         ciphertext, self.symmetric_key = self.kem.encap_secret(public_key_sender)
 
         logger.debug("Sending encapsulated key...")
         sockfd.sendto(ciphertext, sender_address)
+        if logger_object is not None:
+            logger_object.save_timestamp(perf_counter())
         logger.debug("Receiver key exchange finished!")
         logger.debug(f"Receiver key: {self.symmetric_key}")
         # self.kem.free()

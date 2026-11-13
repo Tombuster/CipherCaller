@@ -10,6 +10,8 @@ class TimestampLogger:
         # File stuff
         self.suffix = suffix
         self.file_name = f"{self.suffix}.csv"
+        if not os.path.isdir("./measurements"):  # check if "measurements" exitst
+            os.mkdir("./measurements")  # if not, create it
         if not os.path.isdir("./measurements/.tmp"):  # check if "measurements/.tmp" exitst
             os.mkdir("./measurements/.tmp")  # if not, create it
         self.file_path = f"./measurements/{".tmp/" if temporary else ""}{self.file_name}"

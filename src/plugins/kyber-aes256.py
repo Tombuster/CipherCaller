@@ -3,6 +3,7 @@
 # You can use this file as reference for implementing plugins that suit your needs
 
 from src.plugins.util.template_plugin import Plugin
+from src.benchmarking import TimestampLogger
 import logging
 import socket
 import yaml
@@ -45,7 +46,7 @@ class KyberAES256(Plugin):
              int(self.socket_params["port"])))
         return
 
-    def sender_key_exchange(self, sockfd: socket.socket) -> None:
+    def sender_key_exchange(self, sockfd: socket.socket, logger_object:TimestampLogger=None) -> None:
         # self.kem = oqs.KeyEncapsulation(self.kemalg)
 
         logger.debug("Generating Kyber keypair...")
@@ -82,7 +83,7 @@ class KyberAES256(Plugin):
 
 
 # === RECEIVER METHODS === #
-    def receiver_key_exchange(self, sockfd: socket.socket) -> None:
+    def receiver_key_exchange(self, sockfd: socket.socket, logger_object:TimestampLogger=None) -> None:
         # self.kem = oqs.KeyEncapsulation(self.kemalg)
 
         logger.debug("Waiting for sender's public key...")

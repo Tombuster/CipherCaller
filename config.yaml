@@ -22,11 +22,12 @@ analyzer:
   visqol_mode: audio  # [AUDIO, speech] (from function description: "audio" for music/general audio (48 kHz, SVR model) or "speech" for speech signals (16 kHz).)
   # Note: ViSQOL prefers a 48kHz sampling rate
   run_pesq: no  # [yes, NO] PESQ can only process 16kHz or 8kHz sampling rates. If using a compatible input file, enable PESQ with this setting
+  run_psnr: no  # [yes, NO]
 
 benchmarking:  # Measurements will apprear in Ciphercaller/measurements
   log_timestamps: yes  # [YES, no]
   run_ke_benchmark: yes # [YES, no]
-  ke_benchmark_rounds: 10
+  ke_benchmark_rounds: 1000
 
 ffmpeg:
   use_ffmpeg: yes  # [YES, no]. if set to "no", pyaudio configuration is used

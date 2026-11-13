@@ -16,6 +16,8 @@ services:
             - ./config.yaml:/ciphercaller/config.yaml:ro
             - ./media:/ciphercaller/media:ro
             - ./measurements:/ciphercaller/measurements:wo
+            - /etc/localtime:/etc/localtime:ro
+            - /etc/timezone:/etc/timezone:ro
         networks:
             - transmission_net
         depends_on:
@@ -40,6 +42,8 @@ services:
             - ./config.yaml:/ciphercaller/config.yaml:ro
             - ./media:/ciphercaller/media:wo
             - ./measurements:/ciphercaller/measurements:wo
+            - /etc/localtime:/etc/localtime:ro
+            - /etc/timezone:/etc/timezone:ro
         networks:
             - transmission_net
     # === FOR LIVE SPEAKER OUTPUT === #
@@ -64,6 +68,8 @@ services:
             - ./config.yaml:/ciphercaller/config.yaml:ro
             - ./media:/ciphercaller/media:ro
             - ./measurements:/ciphercaller/measurements:rw
+            - /etc/localtime:/etc/localtime:ro
+            - /etc/timezone:/etc/timezone:ro
         depends_on:
             sender:
                 condition: service_completed_successfully

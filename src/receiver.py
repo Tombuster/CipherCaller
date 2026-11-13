@@ -86,13 +86,11 @@ class Receiver:
         return chunk
 
 
-    def benchmark_key_exchange(self, sockfd:socket) -> None:
+    def benchmark_key_exchange(self, sockfd:socket.socket) -> None:
         timestamp_logger = TimestampLogger(self.config, 'receiver-kex')
         for i in range(self.ke_benchmark_rounds):
             timestamp_logger.new_line(i)
-            timestamp_logger.save_timestamp(time.perf_counter())
-            self.plugin.receiver_key_exchange(sockfd)
-            timestamp_logger.save_timestamp(time.perf_counter())
+            self.plugin.receiver_key_exchange(sockfd, timestamp_logger)
             timestamp_logger.write_line()
             # time.sleep(0.3)
 

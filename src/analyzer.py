@@ -20,29 +20,30 @@ class Analyzer:
         self.analyzer_params = config.get("analyzer", {})
     
     def run_audio_metrics(self) -> dict:
+        results = {}
         # PSNR
-        filter_complex = (
-            "[0:a][1:a]apsnr[apsnr]"
-        )
-        maps = ["-map", "[apsnr]"]
-        cmd = [
-            "ffmpeg", "-hide_banner",
-            "-i", self.reference_file_path,
-            "-i", self.distorted_file_path,
-            "-filter_complex", filter_complex,
-            *maps,
-            "-f", "null", "-",
-        ]
-        stderr = self.run_ffmpeg_subprocess(cmd)
+        if self.analyzer_params.get("run_psnr", False):
+            filter_complex = (
+                "[0:a][1:a]apsnr[apsnr]"
+            )
+            maps = ["-map", "[apsnr]"]
+            cmd = [
+                "ffmpeg", "-hide_banner",
+                "-i", self.reference_file_path,
+                "-i", self.distorted_file_path,
+                "-filter_complex", filter_complex,
+                *maps,
+                "-f", "null", "-",
+            ]
+            stderr = self.run_ffmpeg_subprocess(cmd)
 
-        results: dict = {"psnr": None}
-        psnr = []
-        if stderr is None:
-            logger.error("run_audio_metrics(): FFMPEG did not return results")
-        for line in stderr.splitlines():
-            if results["psnr"] is None and "PSNR" in line:
-                psnr.append(float(line.split(":")[1].strip().split()[0]))
-        results["psnr"] = str(self.list_average(psnr))
+            psnr = []
+            if stderr is None:
+                logger.error("run_audio_metrics(): FFMPEG did not return results")
+            for line in stderr.splitlines():
+                if results["psnr"] is None and "PSNR" in line:
+                    psnr.append(float(line.split(":")[1].strip().split()[0]))
+            results["psnr"] = str(self.list_average(psnr))
         
         # ViSQOL
         visqol_api = VisqolApi()
@@ -184,7 +185,7 @@ class Analyzer:
                 if transmission_time > transmission_time_maximum:
                     transmission_time_maximum = transmission_time
                     transmission_time_maximum_index = int(row[0])
-                elif transmission_time < transmission_time_minimum:
+                if transmission_time < transmission_time_minimum:
                     transmission_time_minimum = transmission_time
                     transmission_time_minimum_index = int(row[0])
                 processing_time = float(row[2]) - float(row[1]) + float(row[6]) - float(row[5])
@@ -192,7 +193,7 @@ class Analyzer:
                 if processing_time > processing_time_maximum:
                     processing_time_maximum = processing_time
                     processing_time_maximum_index = int(row[0])
-                elif processing_time < processing_time_minimum:
+                if processing_time < processing_time_minimum:
                     processing_time_minimum = processing_time
                     processing_time_minimum_index = int(row[0])
                 chunk_size = float(row[4])
@@ -200,7 +201,7 @@ class Analyzer:
                 if chunk_size > chunk_size_maximum:
                     chunk_size_maximum = chunk_size
                     chunk_size_maximum_index = int(row[0])
-                elif chunk_size < chunk_size_minimum:
+                if chunk_size < chunk_size_minimum:
                     chunk_size_minimum = chunk_size
                     chunk_size_minimum_index = int(row[0])
         transmission_time_average = transmission_time_sum / received_count
@@ -263,16 +264,20 @@ class Analyzer:
             sum_receiver += receiver_time
 
             if sender_time < minimum_sender:
+                # logger.info(f"new minimum sender:\t{sender_time} [{row[0]}], was: {minimum_sender} [{minimum_sender_index}], {minimum_sender - sender_time}")
                 minimum_sender = sender_time
                 minimum_sender_index = int(row[0])
-            elif sender_time > maximum_sender:
+            if sender_time > maximum_sender:
+                # logger.info(f"new maximum sender:\t{sender_time} [{row[0]}], was: {maximum_sender} [{maximum_sender_index}], {sender_time - maximum_sender}")
                 maximum_sender = sender_time
                 maximum_sender_index = int(row[0])
 
             if receiver_time < minimum_receiver:
+                # logger.info(f"new minimum receiver:\t{receiver_time} [{row[0]}], was: {minimum_receiver} [{minimum_receiver_index}], {minimum_receiver - receiver_time}")
                 minimum_receiver = receiver_time
                 minimum_receiver_index = int(row[0])
-            elif receiver_time > maximum_receiver:
+            if receiver_time > maximum_receiver:
+                # logger.info(f"new maximum receiver:\t{receiver_time} [{row[0]}], was: {maximum_receiver} [{maximum_receiver_index}], {receiver_time - maximum_receiver:}")
                 maximum_receiver = receiver_time
                 maximum_receiver_index = int(row[0])
 
@@ -340,21 +345,21 @@ class Analyzer:
                 if encrypt_time > maximum_encrypt:
                     maximum_encrypt = encrypt_time
                     maximum_encrypt_index = int(row[0])
-                elif encrypt_time < minimum_encrypt:
+                if encrypt_time < minimum_encrypt:
                     minimum_encrypt = encrypt_time
                     minimum_encrypt_index = int(row[0])
 
                 if decrypt_time > maximum_decrypt:
                     maximum_decrypt = decrypt_time
                     maximum_decrypt_index = int(row[0])
-                elif decrypt_time < minimum_decrypt:
+                if decrypt_time < minimum_decrypt:
                     minimum_decrypt = decrypt_time
                     minimum_decrypt_index = int(row[0])
 
                 if processing_time > maximum_processing:
                     maximum_processing = processing_time
                     maximum_processing_index = int(row[0])
-                elif processing_time < minimum_processing:
+                if processing_time < minimum_processing:
                     minimum_processing = processing_time
                     minimum_processing_index = int(row[0])
 
@@ -501,10 +506,6 @@ class Analyzer:
         json_report['key exchange'] = self.calculate_key_exchange_stats(ke_timestamps)
         json_report['cryptography'] = self.calculate_cryptography_stats(timestamps)
 
-        # Calculate audio metrics
-        logger.info("Calculating audio metrics...")
-        json_report['audio'] = self.run_audio_metrics()
-
         # Get input and output file statistics
         logger.info("Fetching transmission input and output file information...")
         input_params = self.config.get('input', {})
@@ -512,6 +513,10 @@ class Analyzer:
         json_report['input'] = self.get_audio_file_info(f"media/input/{input_params.get("file_name", "input.wav")}")
         json_report['output'] = self.get_audio_file_info(f"media/output/{output_params.get("file_name", "output.wav")}")
     
+        # Calculate audio metrics
+        logger.info("Calculating audio metrics...")
+        json_report['audio'] = self.run_audio_metrics()
+
         # Generate reports
         logger.info("Generating reports...")
         report_text_file.write(
@@ -564,7 +569,6 @@ Chunk processing time (end of read -> sent + received -> start of write):
     Average: {json_report['transmission']['processing']['average']} seconds (per chunk)
     Maximum: {json_report['transmission']['processing']['maximum']['value']} seconds (chunk {json_report['transmission']['processing']['maximum']['index']})
     Std. Deviation: {json_report['transmission']['processing']['standard deviation']}
-
 * Transmission time value only valid between two containers running on one host. Values calculated using successfully received packets only.
 {'' if not self.use_plugin and self.run_ke_benchmark else f'''
 = Key exchange stats =
@@ -598,8 +602,8 @@ Cryptography time overhead:
     Sum: {json_report['cryptography']['processing']['sum']}
     Percentage contribution to overall time: {json_report['cryptography']['processing']['sum']/json_report['transmission']['time']['total']*100}%
 '''}
-= Audio metrics =
-Peak Signal-to-Noise Ratio (PSNR) (channel average): {json_report['audio']['psnr']}dB (higher is better; >50 dB is generally indistinguishable from source. Interpretation varries across codecs, compression, etc.)
+= Audio metrics ={'' if not self.analyzer_params.get("run_psnr", False) else
+ f'''Peak Signal-to-Noise Ratio (PSNR) (channel average): {json_report['audio']['psnr']}dB (higher is better; >50 dB is generally indistinguishable from source. Interpretation varries across codecs, compression, etc.)'''}
 ViSQOL: {json_report['audio']['visqol mos-lqo']} (1.0 - 5.0, higher is better)
 {'' if not self.analyzer_params.get("run_pesq", False) else
  f'''PESQ*:
