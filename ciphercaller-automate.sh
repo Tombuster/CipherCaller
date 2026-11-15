@@ -6,7 +6,7 @@ if [ "$#" -ne 1 ]; then
     exit 1
 fi
 
-kems=("ML-KEM-512" "ML-KEM-768" "ML-KEM-1024" "HQC-1" "HQC-3" "HQC-5" "FrodoKEM-976-AES" "FrodoKEM-1344-AES" "Classic-McEliece-" "Classic-McEliece-")
+kems=("ML-KEM-512" "ML-KEM-768" "ML-KEM-1024" "HQC-1" "HQC-3" "HQC-5" "FrodoKEM-976-AES" "FrodoKEM-1344-AES" "Classic-McEliece-460896" "Classic-McEliece-8192128")
 plugin_config_path="src/plugins/plugin-config/liboqs-any-aes256.yaml"
 kem_rounds=$1 #10
 
