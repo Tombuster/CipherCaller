@@ -614,6 +614,17 @@ ViSQOL: {json_report['audio']['visqol mos-lqo']} (1.0 - 5.0, higher is better)
 
         report_json_file.write(json.dumps(json_report))
 
+        logger.info("Checking for plugin info...")
+        if os.path.exists("./measurements/.tmp/plugin-info.json"):
+            logger.info("Plugin info found, writing...")
+            plugin_info_file = open("./measurements/.tmp/plugin-info.json")
+            plugin_info = plugin_info_file.readline()
+            plugin_info_file.close()
+            plugin_info = json.loads(plugin_info)
+            plugin_info_file = open(f"{file_directory_path}/{plugin_info.get("name", None) if plugin_info.get("name", None) is not None else "plugin-info"}.json", "w")
+            plugin_info_file.write(json.dumps(plugin_info))
+            plugin_info_file.close()
+
         # Remove temporary files
         self.remove_temp_files()
         

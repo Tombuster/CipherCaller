@@ -10,6 +10,7 @@ import yaml
 from Crypto.Cipher import AES
 from Crypto.Protocol.KDF import PBKDF2
 from Crypto.Util.Padding import pad, unpad
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +90,8 @@ class SimpleAesPsk(Plugin):
     def sender_cleanup(self) -> None:
         return
 
+    def sender_get_info(self) -> dict[str, Any] | None:
+        return
 
 # === RECEIVER METHODS === #
     def receiver_key_exchange(self, sockfd: socket.socket, logger_object:TimestampLogger=None) -> None:

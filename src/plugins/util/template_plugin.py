@@ -10,6 +10,7 @@
 
 from src.benchmarking import TimestampLogger
 from abc import ABC
+from typing import Any
 import logging
 import socket
 
@@ -47,6 +48,9 @@ class Plugin(ABC):
         # This function is called right before SENDER program exit. Use it to close descriptors, etc.
         return
 
+    def sender_get_info(self) -> dict[str, Any] | None:
+        # This function is called after plugin initialization and should return a json-like dict that will be written to measurements/.tmp/ or None if no information is to be handed over
+        return
 
 # === RECEIVER METHODS === #
     def receiver_key_exchange(self, sockfd: socket.socket, logger_object:TimestampLogger=None) -> None:

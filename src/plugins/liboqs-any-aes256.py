@@ -5,6 +5,7 @@
 from src.plugins.util.template_plugin import Plugin
 from src.benchmarking import TimestampLogger
 from time import perf_counter
+from typing import Any
 import logging
 import socket
 import yaml
@@ -60,7 +61,6 @@ class KyberAES256(Plugin):
 
     def sender_key_exchange(self, sockfd: socket.socket, logger_object:TimestampLogger=None) -> None:
         # self.kem = oqs.KeyEncapsulation(self.kemalg)
-
         logger.debug("Generating Kyber keypair...")
         public_key_client = self.kem.generate_keypair()  # public keys match
 
@@ -80,7 +80,6 @@ class KyberAES256(Plugin):
         logger.debug(f"Sender key:   {self.symmetric_key}")
         # self.kem.free()
         return
-
     
     def sender_encrypt_chunk(self, chunk: bytes) -> bytes:
         cipher = AES.new(self.symmetric_key, AES.MODE_CBC)
@@ -97,6 +96,8 @@ class KyberAES256(Plugin):
         self.kem.free()
         return
 
+    def sender_get_info(self) -> dict[str, Any] | None:
+        return self.kem.details
 
 # === RECEIVER METHODS === #
     def receiver_key_exchange(self, sockfd: socket.socket, logger_object:TimestampLogger=None) -> None:

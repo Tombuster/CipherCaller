@@ -4,6 +4,7 @@
 
 from src.plugins.util.template_plugin import Plugin
 from src.benchmarking import TimestampLogger
+from typing import Any
 import logging
 import socket
 import yaml
@@ -36,6 +37,8 @@ class Empty(Plugin):  # You can change the class name to reflect what the plugin
     def sender_cleanup(self) -> None:
         return
 
+    def sender_get_info(self) -> dict[str, Any] | None:
+        return
 
 # === RECEIVER METHODS === #
     def receiver_key_exchange(self, sockfd: socket.socket, logger_object:TimestampLogger=None) -> None:

@@ -6,6 +6,7 @@ import sys  # exit()
 import time  # performance measurements + sleep
 import subprocess  # FFmpeg pipe
 import os  # os.read() for reading data chunks from ffmpeg pipe
+import json
 from src.plugins.util.loader import load_plugin
 from src.plugins.util.template_plugin import Plugin
 from src.benchmarking import TimestampLogger
@@ -46,6 +47,18 @@ class Sender:
             self.use_plugin = True
             self.plugin_params = config["plugin"]
             self.plugin = load_plugin(self.config)
+            plugin_info = self.plugin.sender_get_info()
+            if plugin_info is not None:
+                if not os.path.isdir("./measurements"):  # check if "measurements" exitst
+                    os.mkdir("./measurements")  # if not, create it
+                if not os.path.isdir("./measurements/.tmp"):  # check if "measurements/.tmp" exitst
+                    os.mkdir("./measurements/.tmp")
+                file_path = f"./measurements/.tmp/plugin-info.json"
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                info_file = open(file_path, "w")
+                info_file.write(json.dumps(plugin_info))
+                info_file.close()
         else:
             self.use_plugin = False
         # Sender debug
