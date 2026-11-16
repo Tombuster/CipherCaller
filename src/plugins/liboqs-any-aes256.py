@@ -62,6 +62,8 @@ class KyberAES256(Plugin):
     def sender_key_exchange(self, sockfd: socket.socket, logger_object:TimestampLogger=None) -> None:
         # self.kem = oqs.KeyEncapsulation(self.kemalg)
         logger.debug("Generating Kyber keypair...")
+        if logger_object is not None:
+            logger_object.save_timestamp(perf_counter())
         public_key_client = self.kem.generate_keypair()  # public keys match
 
         logger.debug("Transmitting Kyber public key...")

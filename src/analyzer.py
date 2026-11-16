@@ -127,7 +127,7 @@ class Analyzer:
                 for item in tmp:
                     row.append(item)
             else:
-                for _ in range(2):
+                for _ in range(3):
                     row.append('')
             tmp = receiver_dict.get(key, None)
             if tmp is not None:
@@ -243,25 +243,41 @@ class Analyzer:
         ans = {}
 
         ke_count = 0
+        sum_keygen = 0
         sum_sender = 0
         sum_receiver = 0
+        minimum_keygen = float('inf')
         minimum_sender = float('inf')
         minimum_receiver = float('inf')
+        maximum_keygen = 0
         maximum_sender = 0
         maximum_receiver = 0
 
+        minimum_keygen_index = 0
         minimum_sender_index = 0
         minimum_receiver_index = 0
+        maximum_keygen_index = 0
         maximum_sender_index = 0
         maximum_receiver_index = 0
 
         for row in ke_timestamps:
             ke_count += 1
-            sender_time = float(row[2]) - float(row[1])
-            receiver_time = float(row[4]) - float(row[3])
+            keygen_time = float(row[2]) - float(row[1])
+            sender_time = float(row[3]) - float(row[2])
+            receiver_time = float(row[5]) - float(row[4])
 
+            sum_keygen += keygen_time
             sum_sender += sender_time
             sum_receiver += receiver_time
+
+            if keygen_time < minimum_keygen:
+                # logger.info(f"new minimum keygen:\t{keygen_time} [{row[0]}], was: {minimum_keygen} [{minimum_keygen_index}], {minimum_keygen - keygen_time}")
+                minimum_keygen = keygen_time
+                minimum_keygen_index = int(row[0])
+            if keygen_time > maximum_keygen:
+                # logger.info(f"new maximum keygen:\t{keygen_time} [{row[0]}], was: {maximum_keygen} [{maximum_keygen_index}], {keygen_time - maximum_keygen}")
+                maximum_keygen = keygen_time
+                maximum_keygen_index = int(row[0])
 
             if sender_time < minimum_sender:
                 # logger.info(f"new minimum sender:\t{sender_time} [{row[0]}], was: {minimum_sender} [{minimum_sender_index}], {minimum_sender - sender_time}")
@@ -281,18 +297,29 @@ class Analyzer:
                 maximum_receiver = receiver_time
                 maximum_receiver_index = int(row[0])
 
+        average_keygen = sum_keygen / ke_count
         average_sender = sum_sender / ke_count
         average_receiver = sum_receiver / ke_count
 
+        keygen_std_dev_sum = 0
         sender_std_dev_sum = 0
         receiver_std_dev_sum = 0
 
         for row in ke_timestamps:
-            sender_std_dev_sum += pow(float(row[2]) - float(row[1]) - average_sender, 2)
-            receiver_std_dev_sum += pow(float(row[4]) - float(row[3]) - average_receiver, 2)
+            keygen_std_dev_sum += pow(float(row[2]) - float(row[1]) - average_keygen, 2)
+            sender_std_dev_sum += pow(float(row[3]) - float(row[2]) - average_sender, 2)
+            receiver_std_dev_sum += pow(float(row[5]) - float(row[4]) - average_receiver, 2)
 
+        std_dev_keygen = sqrt(keygen_std_dev_sum / ke_count)
         std_dev_sender = sqrt(sender_std_dev_sum / ke_count)
         std_dev_receiver = sqrt(receiver_std_dev_sum / ke_count)
+
+        ans['kem key generation'] ={
+            'minimum': {'value': minimum_keygen, 'index': minimum_keygen_index},
+            'average': average_keygen,
+            'maximum': {'value': maximum_keygen, 'index': maximum_keygen_index},
+            'standard deviation': std_dev_keygen
+        }
 
         ans['sender'] = {
             'minimum': {'value': minimum_sender, 'index': minimum_sender_index},
@@ -493,7 +520,7 @@ class Analyzer:
         timestamp_file_writer.writerow(headers)
         timestamps = self.write_all_timestamps(sender_file_reader, receiver_file_reader, timestamp_file_writer)
 
-        headers = ["Sequence_number", "Sender_exchange_start", "Sender_exchange_end", "Receiver_exchange_start", "Receiver_exchange_end"]
+        headers = ["Sequence_number", "Kem_keygen_start", "Sender_exchange_start", "Sender_exchange_end", "Receiver_exchange_start", "Receiver_exchange_end"]
         timestamp_ke_file_writer.writerow(headers)
         ke_timestamps = self.write_all_ke_timestamps(sender_ke_file_reader, receiver_ke_file_reader, timestamp_ke_file_writer)
 
@@ -588,6 +615,11 @@ Chunk processing time (end of read -> sent + received -> start of write):
 * Transmission time value only valid between two containers running on one host. Values calculated using successfully received packets only.
 {'' if not self.use_plugin and self.run_ke_benchmark else f'''
 = Key exchange stats =
+Key generation:
+    Minimum: {json_report['key exchange']['kem key generation']['minimum']['value']} (exchange {json_report['key exchange']['kem key generation']['minimum']['index']})
+    Average: {json_report['key exchange']['kem key generation']['average']}
+    Maximum: {json_report['key exchange']['kem key generation']['maximum']['value']} (exchange {json_report['key exchange']['kem key generation']['maximum']['index']})
+    Std. Deviation: {json_report['key exchange']['kem key generation']['standard deviation']}
 Sender:
     Minimum: {json_report['key exchange']['sender']['minimum']['value']} (exchange {json_report['key exchange']['sender']['minimum']['index']})
     Average: {json_report['key exchange']['sender']['average']}
