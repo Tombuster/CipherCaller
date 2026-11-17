@@ -34,7 +34,6 @@ class LiboqsAES256(Plugin):
                 f"{type(self).__name__} did not find path to own configuration in config.yaml! (config.yaml -> plugin -> config_path)"
             )
 
-        logger.info(f"{oqs.get_enabled_kem_mechanisms()}")
         self.kemalg = self.this_plugin_config.get("liboqs_alg_name", None)
         if self.kemalg is None:
             raise ValueError(f"{self.main_plugin_config.get("config_path")}: 'liboqs_alg_name' key or value missing!")
@@ -96,12 +95,14 @@ class LiboqsAES256(Plugin):
     def sender_encrypt_chunk(self, chunk: bytes) -> bytes:
         cipher = AES.new(self.symmetric_key, AES.MODE_CBC)
         pad_flag = 0x00
+        # logger.info(f"Sender chunk length: {len(chunk)}, {len(chunk)%16} mod 16")
         if len(chunk) % AES.block_size != 0:
             pad_flag = 0x01
             chunk = pad(chunk, AES.block_size)
         chunk = cipher.encrypt(chunk)
         chunk = cipher.iv + chunk
         chunk = int.to_bytes(pad_flag) + chunk
+        # logger.info(f"Sender padded chunk length: {len(chunk)}, {len(chunk)%16} mod 16, padded: {bool(pad_flag)} ({pad_flag})")
         return chunk
     
     def sender_cleanup(self) -> None:
@@ -143,15 +144,17 @@ class LiboqsAES256(Plugin):
     def receiver_extend_buffer(self, buffer_size: int) -> int:
         if buffer_size % AES.block_size != 0:
             buffer_size += (buffer_size % AES.block_size)
-            buffer_size += 16
-            buffer_size += 1
+        buffer_size += 16
+        buffer_size += 1
         return buffer_size
 
     def receiver_decrypt_chunk(self, chunk: bytes) -> bytes:
         pad_flag = chunk[0]
-        iv = chunk[1:17]                                     # separate iv
+        # logger.info(f"Receiver padded chunk length: {len(chunk)}, {len(chunk)%16} mod 16, padded: {bool(pad_flag)} ({pad_flag})")
+        iv = chunk[1:17]  # separate iv
         chunk = chunk[17:]        
         cipher = AES.new(self.symmetric_key, AES.MODE_CBC, iv=iv)
+        # logger.info(f"Receiver chunk length: {len(chunk)}, {len(chunk)%16} mod 16, padded: {bool(pad_flag)} ({pad_flag})")
         chunk = cipher.decrypt(chunk)
         if pad_flag:
             chunk = unpad(chunk, AES.block_size)

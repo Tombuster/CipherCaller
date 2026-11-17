@@ -1,0 +1,69 @@
+# This is a basic CipherCaller configuration file.
+#
+# If only specific values are accepted for a given key, they are given in each key's comment in square beackets.
+# "Default" values refer to values assumed by the program if the relevant key is missing from the configuration file.
+# The default values are written in ALL CAPS in the comment, but should be written in regular characters.
+# For further guidance, please visit the project wiki at https://github.com/Tombuster/CipherCaller/wiki
+
+
+#===== TRANSMISSION =====#
+input:
+  method: microphone  # [microphone, FILE]. Operation mode. Default value is "file".
+  file_name: 48kHz/global-village-hochdeutsch.wav  # Input file name for "file" mode. Default is "input.wav". File MUST BE in "media/input/"!
+  input_device_index: 0  # Device index for pyaudio input (most likely microphone). A list is displayed upon program statup
+  microphone_seconds: 10
+  simulate_realtime: yes  # [yes, no]. only effective in "file" mode
+
+output:
+  method: both  # [FILE, playback, both]. Operation mode.
+  file_name: example.wav  # Output file path for "file" and "both" modes. Defaults to "output.wav". Will be written to "media/output/"
+  output_device_index: 0  # Device index for pyaudio output (most likely speakers / headphones)
+
+analyzer:
+  visqol_mode: audio  # [AUDIO, speech] (from function description: "audio" for music/general audio (48 kHz, SVR model) or "speech" for speech signals (16 kHz).)
+  # Note: ViSQOL prefers a 48kHz sampling rate
+  run_pesq: no  # [yes, NO] PESQ can only process 16kHz or 8kHz sampling rates. If using a compatible input file, enable PESQ with this setting
+  run_psnr: no  # [yes, NO]
+
+benchmarking:  # Measurements will apprear in Ciphercaller/measurements
+  log_timestamps: yes  # [YES, no]
+  run_ke_benchmark: no # [YES, no]
+  ke_benchmark_rounds: 1000
+
+ffmpeg:
+  use_ffmpeg: yes  # [YES, no]. if set to "no", pyaudio configuration is used
+  simulate_realtime: yes
+  sample_width_bytes: 2  # must correspond to sample_format value
+  codec: pcm_s16le
+  sample_rate: 48000  # must reflect file values
+  channels: 1
+  sample_format: s16le  # see "ffmpeg -formats | grep PCM" for options
+  chunk_size: 9600  # how many audio frames are processed at once. Adjust this parameter up if chunk processing time exceeds the real-time window.
+
+pyaudio:  # Microphone input parameters
+  chunk_size: 9600  # how many audio frames are processed at once. Adjust this parameter up if chunk processing time exceeds the real-time window.
+  channels: 1
+  rate: 48000
+  sample_width_bytes: 2 # [1, 2, 4]. Corresponds to 8b, 16b and 32b integers. Value of 3 is technically supported, though reading a file results in mostly noise...
+
+sockets:
+  receiver_host: receiver  # Docker SERVICE name. Change to IPv4 address for remote deployment
+  # receiver_address:  # Address supplied to receiver's socket.bind() command; Default is ""
+  port: 2004
+  sender_delay_ms: 1000  # Delay before streaming starts, used to let receiver socket bind
+  sender_timeout_ms: 10000  # Sender socket receive timeout. Mainly applies to key exchange.
+  receiver_timeout_ms: 10000  # Receiver socket receive timeout. Used for breaking the receiving loop and applies to key exchange. Must exceed sender startup time
+
+logging:
+  level: INFO
+
+plugin:
+  # Plugin configuration
+  # When creating your own plugin, you can include its keys in this section
+  use_plugin: yes  # [yes, NO]. Default value is "no"
+  name: liboqs-any-aes256  # Name of Python file containing desired plugin. MUST be in the src/plugins/ directory!
+  config_path: src/plugins/plugin-config/liboqs-any-aes256.yaml
+
+debug:
+  sender_output_stream_to_file: no # [yes, no] NOTE: Needs permissions in docker-compose.yaml!
+  sender_output_file_path: media/output/sender_output.wav

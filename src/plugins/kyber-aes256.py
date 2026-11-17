@@ -105,8 +105,8 @@ class KyberAES256(Plugin):
     def receiver_extend_buffer(self, buffer_size: int) -> int:
         if buffer_size % AES.block_size != 0:
             buffer_size += (buffer_size % AES.block_size)
-            buffer_size += 16
-            buffer_size += 1
+        buffer_size += 16
+        buffer_size += 1
         return buffer_size
 
     def receiver_decrypt_chunk(self, chunk: bytes) -> bytes:

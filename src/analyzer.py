@@ -444,7 +444,7 @@ class Analyzer:
         attributes = subprocess.run(cmd, capture_output=True, text=True)
         attributes = json.loads(attributes.stdout)
         # print(attributes)
-        ans['name'] = attributes['format']['filename']
+        ans['name'] = attributes['format']['filename'] if self.config.get('input', {}).get('mode', 'file') == 'file' else 'microphone'
         ans['size'] = attributes['format']['size']
         ans['duration'] = attributes['format']['duration']
         ans['channels'] = attributes['streams'][0]['channels']
@@ -505,30 +505,32 @@ class Analyzer:
         logger.info("Consolidating measurements...")
         sender_file = open("measurements/.tmp/sender.csv", "r")
         receiver_file = open("measurements/.tmp/receiver.csv", "r")
-        sender_ke_file = open("measurements/.tmp/sender-kex.csv", "r")
-        receiver_ke_file = open("measurements/.tmp/receiver-kex.csv", "r")
-    
         sender_file_reader = csv.reader(sender_file)
         receiver_file_reader = csv.reader(receiver_file)
-        sender_ke_file_reader = csv.reader(sender_ke_file)
-        receiver_ke_file_reader = csv.reader(receiver_ke_file)
-
         timestamp_file_writer = csv.writer(timestamp_file)
-        timestamp_ke_file_writer = csv.writer(timestamp_ke_file)
+
+        if self.run_ke_benchmark:
+            sender_ke_file = open("measurements/.tmp/sender-kex.csv", "r")
+            receiver_ke_file = open("measurements/.tmp/receiver-kex.csv", "r")
+            sender_ke_file_reader = csv.reader(sender_ke_file)
+            receiver_ke_file_reader = csv.reader(receiver_ke_file)
+            timestamp_ke_file_writer = csv.writer(timestamp_ke_file)
 
         headers = ["Sequence_number", "Sender_chunk_read", "Sender_chunk_processed", "Sender_chunk_transmitted", "Sent_chunk_length", "Receiver_chunk_received", "Receiver_chunk_processed", "Receiver_chunk_written", "Received_chunk_length"]
         timestamp_file_writer.writerow(headers)
         timestamps = self.write_all_timestamps(sender_file_reader, receiver_file_reader, timestamp_file_writer)
 
-        headers = ["Sequence_number", "Kem_keygen_start", "Sender_exchange_start", "Sender_exchange_end", "Receiver_exchange_start", "Receiver_exchange_end"]
-        timestamp_ke_file_writer.writerow(headers)
-        ke_timestamps = self.write_all_ke_timestamps(sender_ke_file_reader, receiver_ke_file_reader, timestamp_ke_file_writer)
+        if self.run_ke_benchmark:
+            headers = ["Sequence_number", "Kem_keygen_start", "Sender_exchange_start", "Sender_exchange_end", "Receiver_exchange_start", "Receiver_exchange_end"]
+            timestamp_ke_file_writer.writerow(headers)
+            ke_timestamps = self.write_all_ke_timestamps(sender_ke_file_reader, receiver_ke_file_reader, timestamp_ke_file_writer)
 
     
         sender_file.close()
-        sender_ke_file.close()
         receiver_file.close()
-        receiver_ke_file.close()
+        if self.run_ke_benchmark:
+            sender_ke_file.close()
+            receiver_ke_file.close()
 
     
         # Calculate transmission metrics
@@ -546,7 +548,8 @@ class Analyzer:
         }
 
         json_report['transmission'] = self.calculate_transmission_stats(timestamps)
-        json_report['key exchange'] = self.calculate_key_exchange_stats(ke_timestamps)
+        if self.run_ke_benchmark:
+            json_report['key exchange'] = self.calculate_key_exchange_stats(ke_timestamps)
         json_report['cryptography'] = self.calculate_cryptography_stats(timestamps)
 
         # Get input and output file statistics
@@ -613,7 +616,7 @@ Chunk processing time (end of read -> sent + received -> start of write):
     Maximum: {json_report['transmission']['processing']['maximum']['value']} seconds (chunk {json_report['transmission']['processing']['maximum']['index']})
     Std. Deviation: {json_report['transmission']['processing']['standard deviation']}
 * Transmission time value only valid between two containers running on one host. Values calculated using successfully received packets only.
-{'' if not self.use_plugin and self.run_ke_benchmark else f'''
+{'' if not self.use_plugin or not self.run_ke_benchmark else f'''
 = Key exchange stats =
 Key generation:
     Minimum: {json_report['key exchange']['kem key generation']['minimum']['value']} (exchange {json_report['key exchange']['kem key generation']['minimum']['index']})
@@ -661,17 +664,6 @@ ViSQOL: {json_report['audio']['visqol mos-lqo']} (1.0 - 5.0, higher is better)
 * using implementation of the 2018 ITU Corrigendum 2. Scores not comparable with PESQ implementations which do not use the Corrigendum! Although it is obsolete, it is free to use and still provides comparison to many papers.'''}''')
 
         report_json_file.write(json.dumps(json_report))
-
-        # logger.info("Checking for plugin info...")
-        # if os.path.exists("./measurements/.tmp/plugin-info.json"):
-        #     logger.info("Plugin info found, writing...")
-        #     plugin_info_file = open("./measurements/.tmp/plugin-info.json")
-        #     plugin_info = plugin_info_file.readline()
-        #     plugin_info_file.close()
-        #     plugin_info = json.loads(plugin_info)
-        #     plugin_info_file = open(f"{file_directory_path}/{plugin_info.get("name", None) if plugin_info.get("name", None) is not None else "plugin-info"}.json", "w")
-        #     plugin_info_file.write(json.dumps(plugin_info))
-        #     plugin_info_file.close()
 
         # Remove temporary files
         self.remove_temp_files()

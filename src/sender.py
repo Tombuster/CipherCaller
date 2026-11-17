@@ -345,47 +345,46 @@ class Sender:
             for i in range(5, 0, -1):
                 logger.info(f"{i}...")
                 time.sleep(1)
-            logger.info("Sending audio. Press Ctrl+C to stop")
+            logger.info(f"Sending {self.input_params['microphone_seconds']} seconds of audio...")
             # Transmit chunks
             chunk_start = time.perf_counter()
-            while True:
-                try:
-                    # Read chunk from microphone stream...
-                    chunk = microphone_stream.read(self.pyaudio_params["chunk_size"], exception_on_overflow=False)  # TODO: OSError: [Errno -9981] Input overflowed
+            for i in range(0, int(int(self.pyaudio_params['rate']) / int(self.pyaudio_params['chunk_size']) * int(self.input_params['microphone_seconds']))):
+            # Read chunk from microphone stream...
+                chunk = microphone_stream.read(self.pyaudio_params["chunk_size"], exception_on_overflow=False)
 
-                    # ...Log timestamp...
-                    if self.benchmark_on:
-                        self.benchmark_logger.new_line(int.from_bytes(self.chunks_sent))
-                        self.benchmark_logger.save_timestamp(time.perf_counter())
+                # ...Log timestamp...
+                if self.benchmark_on:
+                    self.benchmark_logger.new_line(int.from_bytes(self.chunks_sent))
+                    self.benchmark_logger.save_timestamp(time.perf_counter())
 
-                    # ...Write to debug output...
-                    if self.debug_write_file:
-                        debug_wf.writeframes(chunk)
+                # ...Write to debug output...
+                if self.debug_write_file:
+                    debug_wf.writeframes(chunk)
 
-                    # ...Process...
-                    chunk = self.process_chunk_for_sending(chunk)
+                # ...Process...
+                chunk = self.process_chunk_for_sending(chunk)
 
-                    # ...And transmit to receiver
-                    self.send_stream_chunk_to_host(chunk, sockfd)
+                # ...And transmit to receiver
+                self.send_stream_chunk_to_host(chunk, sockfd)
 
-                    # Log final sender timestamp
-                    if self.benchmark_on:
-                        self.benchmark_logger.save_timestamp(time.perf_counter())
-                        self.benchmark_logger.write_line()
+                # Log final sender timestamp
+                if self.benchmark_on:
+                    self.benchmark_logger.save_timestamp(time.perf_counter())
+                    self.benchmark_logger.write_line()
                     
-                    logger.info(f"Sent chunk {int.from_bytes(self.chunks_sent)} [{len(chunk)}B]")
-                    self.increment_chunks_sent_mod()
+                logger.debug(f"Sent chunk {int.from_bytes(self.chunks_sent)} [{len(chunk)}B]")
+                self.increment_chunks_sent_mod()
 
-                    chunk_end = time.perf_counter()
-                    processing_time = chunk_end - chunk_start
-                    if processing_time > self.ideal_chunk_time:
-                        logger.warning(f"Chunk exceeded real-time processing time window!  Time: {processing_time}s, Target: {self.ideal_chunk_time}s")
-                    else:
-                        logger.info(f"Chunk processing time OK! ({processing_time}s, should be under or equal {self.ideal_chunk_time}s)")
-                    chunk_start = chunk_end
-                except KeyboardInterrupt:  # TODO: Doesn't work with compose attached, change to different method
-                    logger.info("Ctrl+C detected, stopping transmission...")
-                    break
+                chunk_end = time.perf_counter()
+                processing_time = chunk_end - chunk_start
+                if processing_time > self.ideal_chunk_time:
+                    logger.warning(f"Chunk exceeded real-time processing time window!  Time: {processing_time}s, Target: {self.ideal_chunk_time}s")
+                else:
+                    logger.info(f"Chunk processing time OK! ({processing_time}s, should be under or equal {self.ideal_chunk_time}s)")
+                chunk_start = chunk_end
+            logger.info(f"Sending EOF")
+            self.send_eof(sockfd)
+                
         
         # Stream file contents to receiver
         elif method == "file":
