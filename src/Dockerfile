@@ -14,6 +14,7 @@ RUN cmake -S liboqs -B liboqs/build \
         -DBUILD_SHARED_LIBS=ON \
         -DOQS_ENABLE_SIG_STFL_LMS=ON \
         -DOQS_ENABLE_SIG_STFL_XMSS=ON \
+        -DOQS_ENABLE_KEM_CLASSIC_MCELIECE=ON \
         -DOQS_HAZARDOUS_EXPERIMENTAL_ENABLE_SIG_STFL_KEY_SIG_GEN=ON && \
     cmake --build liboqs/build --parallel 4 && \
     cmake --build liboqs/build --target install

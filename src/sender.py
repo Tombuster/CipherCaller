@@ -228,12 +228,15 @@ class Sender:
 
 
     def benchmark_key_exchange(self, sockfd:socket.socket) -> None:
+        logger.info("Running key exchange benchmark...")
         timestamp_logger = TimestampLogger(self.config, 'sender-kex')
         for i in range(self.ke_benchmark_rounds):
             timestamp_logger.new_line(i)
             self.plugin.sender_key_exchange(sockfd, timestamp_logger)
             timestamp_logger.write_line()
-            # time.sleep(0.3)
+            # time.sleep(1)
+        logger.info("Benchmark finished!")
+        
 
 
     def run_transmission(self) -> None:

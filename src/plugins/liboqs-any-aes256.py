@@ -4,7 +4,7 @@
 
 from src.plugins.util.template_plugin import Plugin
 from src.benchmarking import TimestampLogger
-from time import perf_counter
+from time import perf_counter, sleep
 from typing import Any
 import logging
 import socket
@@ -18,12 +18,13 @@ from Crypto.Util.Padding import pad, unpad
 logger = logging.getLogger(__name__)
 
 # Functionality based on https://github.com/open-quantum-safe/liboqs-python/blob/main/examples/kem.py
-class KyberAES256(Plugin):
+class LiboqsAES256(Plugin):
 
 # === COMMON INITIALIZATION === #
     def __init__(self, config: dict) -> None:
         self.main_plugin_config = config.get("plugin", {})
         self.socket_params = config["sockets"]
+        self.max_udp_datagram_length = 65507  # <- practical maximum datagram data length
 
         # Get this plugin's configuration
         if (config_path := self.main_plugin_config.get("config_path", None)) is not None:
@@ -33,6 +34,7 @@ class KyberAES256(Plugin):
                 f"{type(self).__name__} did not find path to own configuration in config.yaml! (config.yaml -> plugin -> config_path)"
             )
 
+        logger.info(f"{oqs.get_enabled_kem_mechanisms()}")
         self.kemalg = self.this_plugin_config.get("liboqs_alg_name", None)
         if self.kemalg is None:
             raise ValueError(f"{self.main_plugin_config.get("config_path")}: 'liboqs_alg_name' key or value missing!")
@@ -54,19 +56,27 @@ class KyberAES256(Plugin):
 
 # === SENDER METHODS === #
     def sender_transmit_public_key(self, sockfd: socket.socket, key: bytes) -> None:
-        sockfd.sendto(key, 
-            (self.socket_params["receiver_host"],
-             int(self.socket_params["port"])))
+        if self.kem.length_public_key > self.max_udp_datagram_length:
+            for i in range(0, int(self.kem.length_public_key // self.max_udp_datagram_length) + 1):
+                sockfd.sendto(key[i*self.max_udp_datagram_length : min((i+1)*self.max_udp_datagram_length, self.kem.length_public_key)], 
+                    (self.socket_params["receiver_host"],
+                    int(self.socket_params["port"])))
+                # logger.info(f"Sent part {i}")
+                sleep(0.001)
+        else:
+            sockfd.sendto(key, 
+                (self.socket_params["receiver_host"],
+                int(self.socket_params["port"])))
         return
 
     def sender_key_exchange(self, sockfd: socket.socket, logger_object:TimestampLogger=None) -> None:
         # self.kem = oqs.KeyEncapsulation(self.kemalg)
-        logger.debug("Generating Kyber keypair...")
+        logger.debug(f"Generating {self.kem.details["name"]} keypair...")
         if logger_object is not None:
             logger_object.save_timestamp(perf_counter())
         public_key_client = self.kem.generate_keypair()  # public keys match
 
-        logger.debug("Transmitting Kyber public key...")
+        logger.debug(f"Transmitting {self.kem.details["name"]} public key...")
         if logger_object is not None:
             logger_object.save_timestamp(perf_counter())
         self.sender_transmit_public_key(sockfd, public_key_client)
@@ -105,7 +115,16 @@ class KyberAES256(Plugin):
     def receiver_key_exchange(self, sockfd: socket.socket, logger_object:TimestampLogger=None) -> None:
         # self.kem = oqs.KeyEncapsulation(self.kemalg)
         logger.debug("Waiting for sender's public key...")
-        public_key_sender, sender_address = sockfd.recvfrom(self.kem.length_public_key)  # public keys match
+        if self.kem.length_public_key > self.max_udp_datagram_length:
+            public_key_sender = b''
+            # len_sum = 0
+            for i in range(0, int(self.kem.length_public_key // self.max_udp_datagram_length) + 1):
+                public_key_fragment, sender_address = sockfd.recvfrom(self.max_udp_datagram_length)
+                public_key_sender += public_key_fragment
+                # len_sum += len(public_key_fragment)
+                # logger.info(f"Received part {i} [{len(public_key_fragment)} / {len_sum} / {self.kem.length_public_key}]")
+        else:
+            public_key_sender, sender_address = sockfd.recvfrom(self.kem.length_public_key)  # public keys match
         if logger_object is not None:
             logger_object.save_timestamp(perf_counter())
 

@@ -87,12 +87,14 @@ class Receiver:
 
 
     def benchmark_key_exchange(self, sockfd:socket.socket) -> None:
+        logger.info("Running key exchange benchmark...")
         timestamp_logger = TimestampLogger(self.config, 'receiver-kex')
         for i in range(self.ke_benchmark_rounds):
             timestamp_logger.new_line(i)
             self.plugin.receiver_key_exchange(sockfd, timestamp_logger)
             timestamp_logger.write_line()
-            # time.sleep(0.3)
+            # time.sleep(0.5)
+        logger.info("Benchmark finished!")
 
 
     def run_transmission(self) -> None:
@@ -165,7 +167,6 @@ class Receiver:
 
     # === KEY EXCHANGE === #
         if self.run_ke_benchmark and self.use_plugin:
-            logger.info("Running key exchange benchmark...")
             self.benchmark_key_exchange(sockfd)
         elif self.use_plugin:
             self.plugin.receiver_key_exchange(sockfd)
@@ -237,7 +238,3 @@ class Receiver:
             
         sockfd.close()  # Sockets
         return
-
-
-    def run_key_exchange_benchmark(self) -> None:
-        pass
