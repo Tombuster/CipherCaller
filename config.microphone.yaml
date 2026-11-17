@@ -9,15 +9,15 @@
 #===== TRANSMISSION =====#
 input:
   method: microphone  # [microphone, FILE]. Operation mode. Default value is "file".
-  file_name: 48kHz/global-village-hochdeutsch.wav  # Input file name for "file" mode. Default is "input.wav". File MUST BE in "media/input/"!
-  input_device_index: 0  # Device index for pyaudio input (most likely microphone). A list is displayed upon program statup
+  file_name: recorded/recorded.wav  # Input file name for "file" mode. Default is "input.wav". File MUST BE in "media/input/"!
+  input_device_index: 8  # Device index for pyaudio input (most likely microphone). A list is displayed upon program statup
   microphone_seconds: 10
   simulate_realtime: yes  # [yes, no]. only effective in "file" mode
 
 output:
   method: both  # [FILE, playback, both]. Operation mode.
   file_name: example.wav  # Output file path for "file" and "both" modes. Defaults to "output.wav". Will be written to "media/output/"
-  output_device_index: 0  # Device index for pyaudio output (most likely speakers / headphones)
+  output_device_index: 8  # Device index for pyaudio output (most likely speakers / headphones)
 
 analyzer:
   visqol_mode: audio  # [AUDIO, speech] (from function description: "audio" for music/general audio (48 kHz, SVR model) or "speech" for speech signals (16 kHz).)
@@ -35,7 +35,7 @@ ffmpeg:
   simulate_realtime: yes
   sample_width_bytes: 2  # must correspond to sample_format value
   codec: pcm_s16le
-  sample_rate: 48000  # must reflect file values
+  sample_rate: 96000  # must reflect file values
   channels: 1
   sample_format: s16le  # see "ffmpeg -formats | grep PCM" for options
   chunk_size: 9600  # how many audio frames are processed at once. Adjust this parameter up if chunk processing time exceeds the real-time window.
@@ -43,7 +43,7 @@ ffmpeg:
 pyaudio:  # Microphone input parameters
   chunk_size: 9600  # how many audio frames are processed at once. Adjust this parameter up if chunk processing time exceeds the real-time window.
   channels: 1
-  rate: 48000
+  rate: 96000
   sample_width_bytes: 2 # [1, 2, 4]. Corresponds to 8b, 16b and 32b integers. Value of 3 is technically supported, though reading a file results in mostly noise...
 
 sockets:
@@ -65,5 +65,5 @@ plugin:
   config_path: src/plugins/plugin-config/liboqs-any-aes256.yaml
 
 debug:
-  sender_output_stream_to_file: no # [yes, no] NOTE: Needs permissions in docker-compose.yaml!
-  sender_output_file_path: media/output/sender_output.wav
+  sender_output_stream_to_file: yes # [yes, no] NOTE: Needs permissions in docker-compose.yaml!
+  sender_output_file_path: media/input/recorded/recorded.wav

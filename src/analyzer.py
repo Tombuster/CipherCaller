@@ -19,7 +19,7 @@ class Analyzer:
         self.distorted_file_path = f"media/output/{config["output"].get("file_name", "output.wav")}"
         self.analyzer_params = config.get("analyzer", {})
     
-    def run_audio_metrics(self) -> dict:
+    def calculate_audio_metrics(self) -> dict:
         results = {}
         # PSNR
         if self.analyzer_params.get("run_psnr", False):
@@ -39,7 +39,7 @@ class Analyzer:
 
             psnr = []
             if stderr is None:
-                logger.error("run_audio_metrics(): FFMPEG did not return results")
+                logger.error("calculate_audio_metrics(): FFMPEG did not return results")
             for line in stderr.splitlines():
                 if results["psnr"] is None and "PSNR" in line:
                     psnr.append(float(line.split(":")[1].strip().split()[0]))
@@ -560,8 +560,13 @@ class Analyzer:
         json_report['output'] = self.get_audio_file_info(f"media/output/{output_params.get("file_name", "output.wav")}")
     
         # Calculate audio metrics
-        logger.info("Calculating audio metrics...")
-        json_report['audio'] = self.run_audio_metrics()
+        self.run_audio_metrics = True
+        if self.config['input'].get('mode', 'file') == 'microphone' and not self.config.get("debug", {}).get('sender_output_stream_to_file', False):
+            logger.info("Microphone input used but recording not saved using config.yaml -> sender_output_stream_to_file & sender_output_file_path, skipping audio metrics...")
+            self.run_audio_metrics = False
+        else:
+            logger.info("Calculating audio metrics...")
+            json_report['audio'] = self.calculate_audio_metrics()
 
         # Generate reports
         logger.info("Generating reports...")
@@ -652,7 +657,7 @@ Cryptography time overhead:
     Std. Deviation: {json_report['cryptography']['processing']['standard deviation']}
     Sum: {json_report['cryptography']['processing']['sum']}
     Percentage contribution to overall time: {json_report['cryptography']['processing']['sum']/json_report['transmission']['time']['total']*100}%
-'''}
+'''}{'' if not self.run_audio_metrics else f'''
 = Audio metrics ={'' if not self.analyzer_params.get("run_psnr", False) else
  f'''Peak Signal-to-Noise Ratio (PSNR) (channel average): {json_report['audio']['psnr']}dB (higher is better; >50 dB is generally indistinguishable from source. Interpretation varries across codecs, compression, etc.)'''}
 ViSQOL: {json_report['audio']['visqol mos-lqo']} (1.0 - 5.0, higher is better)
@@ -661,7 +666,7 @@ ViSQOL: {json_report['audio']['visqol mos-lqo']} (1.0 - 5.0, higher is better)
     Wideband: {'not calculated' if json_report['audio']['pesq']['wb'] is None else json_report['audio']['pesq']['wb']} (1.0 - 5.0, higher is better)
     Narrowband: {'not calculated' if json_report['audio']['pesq']['nb'] is None else json_report['audio']['pesq']['nb']} (1.0 - 5.0, higher is better)
 
-* using implementation of the 2018 ITU Corrigendum 2. Scores not comparable with PESQ implementations which do not use the Corrigendum! Although it is obsolete, it is free to use and still provides comparison to many papers.'''}''')
+* using implementation of the 2018 ITU Corrigendum 2. Scores not comparable with PESQ implementations which do not use the Corrigendum! Although it is obsolete, it is free to use and still provides comparison to many papers.'''}'''}''')
 
         report_json_file.write(json.dumps(json_report))
 

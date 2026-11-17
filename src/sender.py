@@ -304,7 +304,7 @@ class Sender:
 
         # Debug
         if self.debug_write_file:
-            output_file_path = self.input_params.get("debug_out_file_path", "media/output/sender_output.wav")
+            output_file_path = self.debug_params.get("sender_output_file_path", "media/output/sender_output.wav")
             try:
                 debug_wf = wave.open(output_file_path, 'w')
             except FileNotFoundError:
@@ -351,12 +351,13 @@ class Sender:
             for i in range(0, int(int(self.pyaudio_params['rate']) / int(self.pyaudio_params['chunk_size']) * int(self.input_params['microphone_seconds']))):
             # Read chunk from microphone stream...
                 chunk = microphone_stream.read(self.pyaudio_params["chunk_size"], exception_on_overflow=False)
-
                 # ...Log timestamp...
                 if self.benchmark_on:
                     self.benchmark_logger.new_line(int.from_bytes(self.chunks_sent))
                     self.benchmark_logger.save_timestamp(time.perf_counter())
 
+                raw_chunk_size = len(chunk)
+                
                 # ...Write to debug output...
                 if self.debug_write_file:
                     debug_wf.writeframes(chunk)
@@ -370,6 +371,7 @@ class Sender:
                 # Log final sender timestamp
                 if self.benchmark_on:
                     self.benchmark_logger.save_timestamp(time.perf_counter())
+                    self.benchmark_logger.save_timestamp(raw_chunk_size)
                     self.benchmark_logger.write_line()
                     
                 logger.debug(f"Sent chunk {int.from_bytes(self.chunks_sent)} [{len(chunk)}B]")

@@ -14,7 +14,7 @@ services:
         volumes:
             - ./src:/ciphercaller/src:rx
             - ./config.yaml:/ciphercaller/config.yaml:ro
-            - ./media:/ciphercaller/media:ro
+            - ./media:/ciphercaller/media:rw
             - ./measurements:/ciphercaller/measurements:wo
             - /etc/localtime:/etc/localtime:ro
             - /etc/timezone:/etc/timezone:ro
